@@ -41,8 +41,14 @@ class PumpPoniesDB {
                 start_time BIGINT,
                 created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
                 closed_at BIGINT,
-                completed_at BIGINT
+                completed_at BIGINT,
+                total_pool REAL DEFAULT 0
             )
+        `);
+        
+        // Migration: add total_pool column if it doesn't exist
+        await this.query(`
+            ALTER TABLE races ADD COLUMN IF NOT EXISTS total_pool REAL DEFAULT 0
         `);
 
         // Horses table (linked to races)
@@ -209,11 +215,11 @@ class PumpPoniesDB {
         return await this.getRace(id);
     }
 
-    async setRaceWinner(id, winner) {
+    async setRaceWinner(id, winner, totalPool = 0) {
         const now = Math.floor(Date.now() / 1000);
         await this.query(
-            'UPDATE races SET winner = $1, status = $2, completed_at = $3 WHERE id = $4',
-            [winner, 'completed', now, id]
+            'UPDATE races SET winner = $1, status = $2, completed_at = $3, total_pool = $4 WHERE id = $5',
+            [winner, 'completed', now, totalPool, id]
         );
         return await this.getRace(id);
     }

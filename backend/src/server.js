@@ -508,8 +508,8 @@ app.post('/admin/race/end', adminAuth, async (req, res) => {
         // Calculate winnings
         const results = await depositMonitor.calculateWinnings(race_id, winner);
         
-        // Update race
-        const updatedRace = await db.setRaceWinner(race_id, winner);
+        // Update race with total pool
+        const updatedRace = await db.setRaceWinner(race_id, winner, results.total_pool);
         
         console.log(`Race ended: ${race_id}, Winner: Horse #${winner}`);
         console.log(`Total pool: ${results.total_pool} SOL, ${results.winners.length} winners`);

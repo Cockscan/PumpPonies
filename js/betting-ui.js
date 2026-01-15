@@ -342,7 +342,8 @@ class BettingUI {
             // Handle case where horses array might not be included
             const winnerHorse = race.horses?.find(h => (h.horse_number || h.id) === race.winner);
             const winnerName = winnerHorse ? winnerHorse.name : `Horse #${race.winner || '?'}`;
-            const totalPool = race.pools ? api.getTotalPool(race) : 0;
+            // Use stored total_pool, or calculate from pools if available
+            const totalPool = race.total_pool || (race.pools ? api.getTotalPool(race) : 0);
             
             return `
                 <div class="race-history-card">
