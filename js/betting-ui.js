@@ -251,12 +251,17 @@ class BettingUI {
         const canBet = this.activeRace?.status === 'open';
         const hasRace = !!this.activeRace;
         
+        // Jockey names for display
+        const jockeyNames = ['Satoshi', 'Vitalik', 'CZ', 'SBF', 'Do Kwon', 'Justin', 'Charles', 'Gavin', 'Atlas', 'Neural'];
+        
         container.innerHTML = horses.map((horse, index) => {
-            const horseId = horse.id || index + 1;
+            // Backend uses horse_number, fallback to id or index
+            const horseId = horse.horse_number || horse.id || index + 1;
             const pool = hasRace ? (this.activeRace.pools[horseId] || { amount: 0, bets: 0 }) : { amount: 0, bets: 0 };
             const odds = hasRace ? api.calculateOdds(this.activeRace, horseId) : null;
             const oddsDisplay = odds ? odds.toFixed(2) + 'x' : '--';
             const isUpdated = updatedHorseId === horseId;
+            const jockeyName = horse.jockey || jockeyNames[index] || 'Unknown';
             
             return `
                 <div class="horse-row ${isUpdated ? 'updated' : ''} ${!hasRace ? 'no-race' : ''}" ${canBet ? `onclick="bettingUI.openBetModal(${horseId})"` : ''}>
@@ -265,7 +270,7 @@ class BettingUI {
                     </div>
                     <div class="horse-info">
                         <div class="horse-name">${horse.name}</div>
-                        <div class="horse-jockey">${horse.jockey}</div>
+                        <div class="horse-jockey">${jockeyName}</div>
                     </div>
                     <div class="horse-odds ${isUpdated ? 'updated' : ''}">${oddsDisplay}</div>
                     <div class="horse-pool">
@@ -310,7 +315,8 @@ class BettingUI {
         // Update next race time
         const nextRaceEl = document.getElementById('next-race-time');
         if (nextRaceEl && this.activeRace.start_time) {
-            const raceTime = new Date(this.activeRace.start_time);
+            // Backend returns start_time in seconds, convert to milliseconds
+            const raceTime = new Date(parseInt(this.activeRace.start_time) * 1000);
             nextRaceEl.textContent = raceTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
     }
@@ -375,7 +381,9 @@ class BettingUI {
         }
         
         const now = Date.now();
-        const diff = this.activeRace.start_time - now;
+        // Backend returns start_time in seconds, convert to milliseconds
+        const startTimeMs = parseInt(this.activeRace.start_time) * 1000;
+        const diff = startTimeMs - now;
         
         if (diff <= 0) {
             document.getElementById('countdown-hours').textContent = '00';
@@ -465,7 +473,7 @@ class BettingUI {
             return;
         }
         
-        this.selectedHorse = this.activeRace.horses.find(h => h.id === horseId) || 
+        this.selectedHorse = this.activeRace.horses.find(h => (h.horse_number || h.id) === horseId) || 
                             this.activeRace.horses[horseId - 1];
         
         if (!this.selectedHorse) {
