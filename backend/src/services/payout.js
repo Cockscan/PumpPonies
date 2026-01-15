@@ -251,22 +251,37 @@ class PayoutService {
      * Collect funds from all confirmed deposit addresses
      */
     async collectAllDeposits() {
+        if (!this.masterWallet) {
+            console.error('Master wallet not configured - cannot collect deposits');
+            return { totalCollected: 0, collected: 0, error: 'Master wallet not configured' };
+        }
+        
         const confirmedDepositsResult = await this.db.query(
             "SELECT id FROM deposit_addresses WHERE status = 'confirmed'"
         );
 
+        console.log(`Found ${confirmedDepositsResult.rows.length} confirmed deposits to collect`);
+
         let totalCollected = 0;
         let collected = 0;
+        let errors = [];
 
         for (const { id } of confirmedDepositsResult.rows) {
             try {
                 // Use method that decrypts private key
                 const deposit = await this.db.getDepositAddressWithKey(id);
-                if (!deposit || !deposit.private_key) {
-                    console.error(`Cannot get private key for deposit ${id}`);
+                if (!deposit) {
+                    console.error(`Deposit ${id} not found`);
+                    errors.push(`Deposit ${id} not found`);
+                    continue;
+                }
+                if (!deposit.private_key) {
+                    console.error(`Cannot decrypt private key for deposit ${id} - check ENCRYPTION_SECRET`);
+                    errors.push(`Cannot decrypt key for ${id}`);
                     continue;
                 }
                 
+                console.log(`Collecting from ${deposit.address}...`);
                 const result = await this.collectFromDepositAddress(
                     deposit.address,
                     deposit.private_key
@@ -274,14 +289,18 @@ class PayoutService {
                 if (result) {
                     totalCollected += result.amount;
                     collected++;
+                    console.log(`Successfully collected ${result.amount} SOL from ${deposit.address}`);
+                } else {
+                    console.log(`No funds to collect from ${deposit.address}`);
                 }
             } catch (error) {
-                console.error(`Failed to collect from deposit ${id}:`, error);
+                console.error(`Failed to collect from deposit ${id}:`, error.message);
+                errors.push(`${id}: ${error.message}`);
             }
         }
 
-        console.log(`Collected ${totalCollected} SOL from ${collected} addresses`);
-        return { totalCollected, collected };
+        console.log(`Collection complete: ${totalCollected} SOL from ${collected} addresses`);
+        return { totalCollected, collected, errors: errors.length > 0 ? errors : undefined };
     }
 
     /**
