@@ -373,10 +373,20 @@ class BettingUI {
     }
     
     updateCountdown() {
+        const hoursEl = document.getElementById('countdown-hours');
+        const minutesEl = document.getElementById('countdown-minutes');
+        const secondsEl = document.getElementById('countdown-seconds');
+        
+        if (!hoursEl || !minutesEl || !secondsEl) {
+            console.log('Countdown elements not found');
+            return;
+        }
+        
         if (!this.activeRace || !this.activeRace.start_time) {
-            document.getElementById('countdown-hours').textContent = '00';
-            document.getElementById('countdown-minutes').textContent = '00';
-            document.getElementById('countdown-seconds').textContent = '00';
+            console.log('No active race or start_time:', this.activeRace?.start_time);
+            hoursEl.textContent = '00';
+            minutesEl.textContent = '00';
+            secondsEl.textContent = '00';
             return;
         }
         
@@ -385,15 +395,19 @@ class BettingUI {
         const startTimeMs = parseInt(this.activeRace.start_time) * 1000;
         const diff = startTimeMs - now;
         
+        console.log('Timer update - start_time:', this.activeRace.start_time, 'diff:', diff);
+        
         if (diff <= 0) {
-            document.getElementById('countdown-hours').textContent = '00';
-            document.getElementById('countdown-minutes').textContent = '00';
-            document.getElementById('countdown-seconds').textContent = '00';
+            hoursEl.textContent = '00';
+            minutesEl.textContent = '00';
+            secondsEl.textContent = '00';
             
             // Race has started
             const statusEl = document.getElementById('race-status');
-            statusEl.textContent = 'RACE IN PROGRESS';
-            statusEl.classList.add('closed');
+            if (statusEl) {
+                statusEl.textContent = 'RACE IN PROGRESS';
+                statusEl.classList.add('closed');
+            }
             return;
         }
         
@@ -401,9 +415,9 @@ class BettingUI {
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
         
-        document.getElementById('countdown-hours').textContent = hours.toString().padStart(2, '0');
-        document.getElementById('countdown-minutes').textContent = minutes.toString().padStart(2, '0');
-        document.getElementById('countdown-seconds').textContent = seconds.toString().padStart(2, '0');
+        hoursEl.textContent = hours.toString().padStart(2, '0');
+        minutesEl.textContent = minutes.toString().padStart(2, '0');
+        secondsEl.textContent = seconds.toString().padStart(2, '0');
     }
     
     // ===================
