@@ -201,6 +201,16 @@ class DepositMonitor {
             return;
         }
 
+        // Check if this transaction was already processed (prevent duplicates)
+        const existingBetResult = await this.db.query(
+            'SELECT id FROM bets WHERE transaction_signature = $1',
+            [transfer.signature]
+        );
+        if (existingBetResult.rows.length > 0) {
+            console.log(`Transaction ${transfer.signature.slice(0, 16)}... already processed, skipping`);
+            return null;
+        }
+
         // Update deposit status
         await this.db.updateDepositStatus(
             deposit.id, 
