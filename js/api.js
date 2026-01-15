@@ -196,8 +196,14 @@ class PumpPoniesAPI {
         }
         
         try {
-            const response = await fetch(`${this.baseUrl}/races/completed`);
-            return await response.json();
+            // Get all races and filter completed ones
+            const response = await fetch(`${this.baseUrl}/races`);
+            const result = await response.json();
+            if (result.success && result.data) {
+                const completed = result.data.filter(r => r.status === 'completed');
+                return { success: true, data: completed };
+            }
+            return result;
         } catch (err) {
             return { success: false, error: err.message };
         }
