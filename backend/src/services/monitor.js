@@ -47,16 +47,9 @@ class DepositMonitor {
         console.log(`Refund queued: ${transfer.amount} SOL to ${transfer.fromAddress?.slice(0, 8)}... - Reason: ${reason}`);
 
         // Store refund in database for persistence
-        this.db.db.prepare(`
-            INSERT INTO refunds (id, deposit_id, user_wallet, amount, reason, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?)
-        `).run(
-            uuidv4(),
-            deposit.id,
-            transfer.fromAddress,
-            transfer.amount,
-            reason,
-            Math.floor(Date.now() / 1000)
+        await this.db.query(
+            `INSERT INTO refunds (id, deposit_id, user_wallet, amount, reason, status, created_at) VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+            [uuidv4(), deposit.id, transfer.fromAddress, transfer.amount, reason, Math.floor(Date.now() / 1000)]
         );
 
         // Trigger callback if set
@@ -70,10 +63,11 @@ class DepositMonitor {
     /**
      * Get all pending refunds
      */
-    getPendingRefunds() {
-        return this.db.db.prepare(
+    async getPendingRefunds() {
+        const result = await this.db.query(
             "SELECT * FROM refunds WHERE status = 'pending' ORDER BY created_at"
-        ).all();
+        );
+        return result.rows;
     }
 
     /**
@@ -114,7 +108,7 @@ class DepositMonitor {
     async checkDeposits() {
         try {
             // Get all waiting deposits
-            const waitingDeposits = this.db.getWaitingDeposits();
+            const waitingDeposits = await this.db.getWaitingDeposits();
             
             if (waitingDeposits.length === 0) {
                 return;
@@ -182,7 +176,7 @@ class DepositMonitor {
         // Validate minimum amount
         if (transfer.amount < this.minBet) {
             console.log(`Deposit too small: ${transfer.amount} SOL (min: ${this.minBet})`);
-            this.db.updateDepositStatus(deposit.id, 'rejected_too_small', transfer.amount, transfer.signature, transfer.fromAddress);
+            await this.db.updateDepositStatus(deposit.id, 'rejected_too_small', transfer.amount, transfer.signature, transfer.fromAddress);
             // Queue refund
             await this.queueRefund(deposit, transfer, 'Amount below minimum bet');
             return;
@@ -191,24 +185,24 @@ class DepositMonitor {
         // Validate maximum amount - REJECT and refund if over max
         if (transfer.amount > this.maxBet) {
             console.log(`Deposit too large: ${transfer.amount} SOL (max: ${this.maxBet}) - REJECTING`);
-            this.db.updateDepositStatus(deposit.id, 'rejected_over_max', transfer.amount, transfer.signature, transfer.fromAddress);
+            await this.db.updateDepositStatus(deposit.id, 'rejected_over_max', transfer.amount, transfer.signature, transfer.fromAddress);
             // Queue refund
             await this.queueRefund(deposit, transfer, `Amount exceeds maximum bet of ${this.maxBet} SOL`);
             return;
         }
 
         // Check if race is still open for betting
-        const race = this.db.getRace(deposit.race_id);
+        const race = await this.db.getRace(deposit.race_id);
         if (!race || race.status !== 'open') {
             console.log(`Race ${deposit.race_id} not open for betting. Status: ${race?.status}`);
-            this.db.updateDepositStatus(deposit.id, 'rejected_race_closed', transfer.amount, transfer.signature, transfer.fromAddress);
+            await this.db.updateDepositStatus(deposit.id, 'rejected_race_closed', transfer.amount, transfer.signature, transfer.fromAddress);
             // Queue refund
             await this.queueRefund(deposit, transfer, 'Race is not open for betting');
             return;
         }
 
         // Update deposit status
-        this.db.updateDepositStatus(
+        await this.db.updateDepositStatus(
             deposit.id, 
             'confirmed', 
             transfer.amount, 
@@ -217,14 +211,14 @@ class DepositMonitor {
         );
 
         // Calculate odds at time of placement
-        const pools = this.db.getRacePoolStats(deposit.race_id);
+        const pools = await this.db.getRacePoolStats(deposit.race_id);
         const totalPool = Object.values(pools).reduce((sum, p) => sum + p.amount, 0) + transfer.amount;
         const horsePool = (pools[deposit.horse_number]?.amount || 0) + transfer.amount;
         const odds = totalPool / horsePool;
 
         // Create the bet record
         const betId = uuidv4();
-        const bet = this.db.createBet(
+        const bet = await this.db.createBet(
             betId,
             deposit.race_id,
             deposit.horse_number,
@@ -252,7 +246,7 @@ class DepositMonitor {
      * Mark expired deposits
      */
     async cleanupExpiredDeposits() {
-        const expired = this.db.getExpiredDeposits();
+        const expired = await this.db.getExpiredDeposits();
         
         for (const deposit of expired) {
             // Check one more time if there's actually money there
@@ -265,16 +259,16 @@ class DepositMonitor {
             }
             
             // Mark as expired
-            this.db.updateDepositStatus(deposit.id, 'expired');
+            await this.db.updateDepositStatus(deposit.id, 'expired');
         }
     }
 
     /**
      * Calculate winnings for all bets when race ends
      */
-    calculateWinnings(raceId, winningHorse) {
-        const bets = this.db.getBetsForRace(raceId);
-        const pools = this.db.getRacePoolStats(raceId);
+    async calculateWinnings(raceId, winningHorse) {
+        const bets = await this.db.getBetsForRace(raceId);
+        const pools = await this.db.getRacePoolStats(raceId);
         
         const totalPool = Object.values(pools).reduce((sum, p) => sum + p.amount, 0);
         const winningPool = pools[winningHorse]?.amount || 0;
@@ -295,7 +289,7 @@ class DepositMonitor {
                 const winnings = distributablePool * share;
                 const totalPayout = bet.amount + winnings;
 
-                this.db.updateBetWinnings(bet.id, winnings);
+                await this.db.updateBetWinnings(bet.id, winnings);
 
                 winners.push({
                     bet_id: bet.id,
@@ -307,12 +301,12 @@ class DepositMonitor {
 
                 // Create payout record
                 const payoutId = uuidv4();
-                this.db.createPayout(payoutId, bet.id, bet.user_wallet, totalPayout);
+                await this.db.createPayout(payoutId, bet.id, bet.user_wallet, totalPayout);
 
                 console.log(`Winner: ${bet.user_wallet.slice(0, 8)}... bet ${bet.amount} SOL, wins ${winnings.toFixed(4)} SOL`);
             } else {
                 // Loser
-                this.db.updateBetWinnings(bet.id, 0);
+                await this.db.updateBetWinnings(bet.id, 0);
             }
         }
 

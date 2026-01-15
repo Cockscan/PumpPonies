@@ -1,91 +1,86 @@
 /**
  * Database Schema for Pump Ponies
- * Uses SQLite for simplicity - can be migrated to PostgreSQL for production
+ * Uses PostgreSQL for production
  * 
  * SECURITY: Private keys are encrypted at rest using AES-256-GCM
  */
 
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 const { encryptPrivateKey, decryptPrivateKey, isEncrypted } = require('../utils/encryption');
 
 class PumpPoniesDB {
-    constructor(dbPath, encryptionSecret) {
-        // Ensure data directory exists
-        const dir = path.dirname(dbPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
+    constructor(connectionString, encryptionSecret) {
+        this.pool = new Pool({
+            connectionString,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        });
         
-        this.db = new Database(dbPath);
-        this.db.pragma('journal_mode = WAL');
-        this.db.pragma('foreign_keys = ON');
-        
-        // Store encryption secret for private key encryption
         this.encryptionSecret = encryptionSecret;
         if (!encryptionSecret || encryptionSecret.length < 32) {
             console.warn('[SECURITY WARNING] ENCRYPTION_SECRET not set or too short! Private keys will be stored unencrypted.');
         }
     }
 
+    async query(text, params) {
+        const result = await this.pool.query(text, params);
+        return result;
+    }
+
     /**
      * Initialize all database tables
      */
-    initialize() {
+    async initialize() {
         // Races table
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS races (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 winner INTEGER,
                 predetermined_winner INTEGER,
-                start_time INTEGER,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                closed_at INTEGER,
-                completed_at INTEGER
+                start_time BIGINT,
+                created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+                closed_at BIGINT,
+                completed_at BIGINT
             )
         `);
 
         // Horses table (linked to races)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS horses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                race_id TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                race_id TEXT NOT NULL REFERENCES races(id),
                 horse_number INTEGER NOT NULL,
                 name TEXT NOT NULL,
-                FOREIGN KEY (race_id) REFERENCES races(id),
                 UNIQUE(race_id, horse_number)
             )
         `);
 
         // Deposit addresses table (unique per bet request)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS deposit_addresses (
                 id TEXT PRIMARY KEY,
                 address TEXT NOT NULL UNIQUE,
                 private_key TEXT NOT NULL,
-                race_id TEXT NOT NULL,
+                race_id TEXT NOT NULL REFERENCES races(id),
                 horse_number INTEGER NOT NULL,
                 user_wallet TEXT,
                 status TEXT NOT NULL DEFAULT 'waiting',
                 amount_received REAL DEFAULT 0,
                 transaction_signature TEXT,
-                expires_at INTEGER NOT NULL,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                confirmed_at INTEGER,
-                FOREIGN KEY (race_id) REFERENCES races(id)
+                expires_at BIGINT NOT NULL,
+                created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+                confirmed_at BIGINT
             )
         `);
 
         // Bets table (confirmed deposits become bets)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS bets (
                 id TEXT PRIMARY KEY,
-                race_id TEXT NOT NULL,
+                race_id TEXT NOT NULL REFERENCES races(id),
                 horse_number INTEGER NOT NULL,
-                deposit_address_id TEXT NOT NULL,
+                deposit_address_id TEXT NOT NULL REFERENCES deposit_addresses(id),
                 user_wallet TEXT NOT NULL,
                 amount REAL NOT NULL,
                 transaction_signature TEXT NOT NULL,
@@ -93,63 +88,57 @@ class PumpPoniesDB {
                 winnings REAL,
                 payout_status TEXT DEFAULT 'pending',
                 payout_signature TEXT,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY (race_id) REFERENCES races(id),
-                FOREIGN KEY (deposit_address_id) REFERENCES deposit_addresses(id)
+                created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
             )
         `);
 
         // Payouts table (track all outgoing payments)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS payouts (
                 id TEXT PRIMARY KEY,
-                bet_id TEXT NOT NULL,
+                bet_id TEXT NOT NULL REFERENCES bets(id),
                 user_wallet TEXT NOT NULL,
                 amount REAL NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 transaction_signature TEXT,
                 error_message TEXT,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                processed_at INTEGER,
-                FOREIGN KEY (bet_id) REFERENCES bets(id)
+                created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+                processed_at BIGINT
             )
         `);
 
         // Refunds table (track rejected deposits that need refunds)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS refunds (
                 id TEXT PRIMARY KEY,
-                deposit_id TEXT NOT NULL,
+                deposit_id TEXT NOT NULL REFERENCES deposit_addresses(id),
                 user_wallet TEXT NOT NULL,
                 amount REAL NOT NULL,
                 reason TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 transaction_signature TEXT,
                 error_message TEXT,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                processed_at INTEGER,
-                FOREIGN KEY (deposit_id) REFERENCES deposit_addresses(id)
+                created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+                processed_at BIGINT
             )
         `);
 
         // Config table (store runtime config like master wallet)
-        this.db.exec(`
+        await this.query(`
             CREATE TABLE IF NOT EXISTS config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
-                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+                updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
             )
         `);
 
         // Create indexes for performance
-        this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_deposit_status ON deposit_addresses(status);
-            CREATE INDEX IF NOT EXISTS idx_deposit_address ON deposit_addresses(address);
-            CREATE INDEX IF NOT EXISTS idx_bets_race ON bets(race_id);
-            CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_wallet);
-            CREATE INDEX IF NOT EXISTS idx_payouts_status ON payouts(status);
-            CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status);
-        `);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_deposit_status ON deposit_addresses(status)`);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_deposit_address ON deposit_addresses(address)`);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_bets_race ON bets(race_id)`);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_wallet)`);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_payouts_status ON payouts(status)`);
+        await this.query(`CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status)`);
 
         console.log('Database initialized successfully');
     }
@@ -158,77 +147,82 @@ class PumpPoniesDB {
     // RACE OPERATIONS
     // ===================
 
-    createRace(id, title, horses, startTime, predeterminedWinner = null) {
-        const insertRace = this.db.prepare(`
-            INSERT INTO races (id, title, status, start_time, predetermined_winner)
-            VALUES (?, ?, 'pending', ?, ?)
-        `);
+    async createRace(id, title, horses, startTime, predeterminedWinner = null) {
+        await this.query(
+            `INSERT INTO races (id, title, status, start_time, predetermined_winner) VALUES ($1, $2, 'pending', $3, $4)`,
+            [id, title, startTime, predeterminedWinner]
+        );
 
-        const insertHorse = this.db.prepare(`
-            INSERT INTO horses (race_id, horse_number, name)
-            VALUES (?, ?, ?)
-        `);
+        for (let i = 0; i < horses.length; i++) {
+            await this.query(
+                `INSERT INTO horses (race_id, horse_number, name) VALUES ($1, $2, $3)`,
+                [id, i + 1, horses[i]]
+            );
+        }
 
-        const transaction = this.db.transaction(() => {
-            insertRace.run(id, title, startTime, predeterminedWinner);
-            horses.forEach((name, index) => {
-                insertHorse.run(id, index + 1, name);
-            });
-        });
-
-        transaction();
-        return this.getRace(id);
+        return await this.getRace(id);
     }
 
-    getRace(id) {
-        const race = this.db.prepare('SELECT * FROM races WHERE id = ?').get(id);
-        if (!race) return null;
+    async getRace(id) {
+        const raceResult = await this.query('SELECT * FROM races WHERE id = $1', [id]);
+        if (raceResult.rows.length === 0) return null;
 
-        const horses = this.db.prepare(
-            'SELECT horse_number, name FROM horses WHERE race_id = ? ORDER BY horse_number'
-        ).all(id);
+        const race = raceResult.rows[0];
+        const horsesResult = await this.query(
+            'SELECT horse_number, name FROM horses WHERE race_id = $1 ORDER BY horse_number',
+            [id]
+        );
 
-        return { ...race, horses };
+        return { ...race, horses: horsesResult.rows };
     }
 
-    getActiveRace() {
-        const race = this.db.prepare(
+    async getActiveRace() {
+        const result = await this.query(
             "SELECT * FROM races WHERE status IN ('pending', 'open', 'closed') ORDER BY created_at DESC LIMIT 1"
-        ).get();
+        );
         
-        if (!race) return null;
-        return this.getRace(race.id);
+        if (result.rows.length === 0) return null;
+        return await this.getRace(result.rows[0].id);
     }
 
-    getAllRaces() {
-        return this.db.prepare('SELECT * FROM races ORDER BY created_at DESC').all();
+    async getAllRaces() {
+        const result = await this.query('SELECT * FROM races ORDER BY created_at DESC');
+        return result.rows;
     }
 
-    updateRaceStatus(id, status) {
-        const updates = { status };
-        if (status === 'closed') updates.closed_at = Math.floor(Date.now() / 1000);
-        if (status === 'completed') updates.completed_at = Math.floor(Date.now() / 1000);
-
-        const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-        const values = [...Object.values(updates), id];
-
-        this.db.prepare(`UPDATE races SET ${setClauses} WHERE id = ?`).run(...values);
-        return this.getRace(id);
+    async updateRaceStatus(id, status) {
+        const now = Math.floor(Date.now() / 1000);
+        let query, params;
+        
+        if (status === 'closed') {
+            query = 'UPDATE races SET status = $1, closed_at = $2 WHERE id = $3';
+            params = [status, now, id];
+        } else if (status === 'completed') {
+            query = 'UPDATE races SET status = $1, completed_at = $2 WHERE id = $3';
+            params = [status, now, id];
+        } else {
+            query = 'UPDATE races SET status = $1 WHERE id = $2';
+            params = [status, id];
+        }
+        
+        await this.query(query, params);
+        return await this.getRace(id);
     }
 
-    setRaceWinner(id, winner) {
-        this.db.prepare(
-            'UPDATE races SET winner = ?, status = ?, completed_at = ? WHERE id = ?'
-        ).run(winner, 'completed', Math.floor(Date.now() / 1000), id);
-        return this.getRace(id);
+    async setRaceWinner(id, winner) {
+        const now = Math.floor(Date.now() / 1000);
+        await this.query(
+            'UPDATE races SET winner = $1, status = $2, completed_at = $3 WHERE id = $4',
+            [winner, 'completed', now, id]
+        );
+        return await this.getRace(id);
     }
 
     // ===================
     // DEPOSIT ADDRESS OPERATIONS
     // ===================
 
-    createDepositAddress(id, address, privateKey, raceId, horseNumber, expiresAt, userWallet = null) {
-        // Encrypt the private key before storing
+    async createDepositAddress(id, address, privateKey, raceId, horseNumber, expiresAt, userWallet = null) {
         let storedKey = privateKey;
         if (this.encryptionSecret) {
             try {
@@ -236,49 +230,41 @@ class PumpPoniesDB {
                 console.log(`[SECURITY] Private key encrypted for deposit ${id}`);
             } catch (error) {
                 console.error('[SECURITY ERROR] Failed to encrypt private key:', error.message);
-                // Fall back to unencrypted (not recommended in production)
             }
         }
         
-        this.db.prepare(`
-            INSERT INTO deposit_addresses (id, address, private_key, race_id, horse_number, user_wallet, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(id, address, storedKey, raceId, horseNumber, userWallet, expiresAt);
+        await this.query(
+            `INSERT INTO deposit_addresses (id, address, private_key, race_id, horse_number, user_wallet, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, address, storedKey, raceId, horseNumber, userWallet, expiresAt]
+        );
         
-        return this.getDepositAddress(id);
+        return await this.getDepositAddress(id);
     }
 
-    getDepositAddress(id) {
-        return this.db.prepare('SELECT * FROM deposit_addresses WHERE id = ?').get(id);
+    async getDepositAddress(id) {
+        const result = await this.query('SELECT * FROM deposit_addresses WHERE id = $1', [id]);
+        return result.rows[0] || null;
     }
     
-    /**
-     * Get deposit address with decrypted private key (for use in transactions)
-     * @param {string} id - Deposit ID
-     * @returns {object} Deposit with decrypted private_key
-     */
-    getDepositAddressWithKey(id) {
-        const deposit = this.db.prepare('SELECT * FROM deposit_addresses WHERE id = ?').get(id);
+    async getDepositAddressWithKey(id) {
+        const deposit = await this.getDepositAddress(id);
         if (!deposit) return null;
         
-        // Decrypt the private key if it's encrypted
         if (this.encryptionSecret && deposit.private_key && isEncrypted(deposit.private_key)) {
             try {
                 deposit.private_key = decryptPrivateKey(deposit.private_key, this.encryptionSecret);
             } catch (error) {
                 console.error(`[SECURITY ERROR] Failed to decrypt private key for deposit ${id}:`, error.message);
-                deposit.private_key = null; // Don't expose corrupted/wrong key
+                deposit.private_key = null;
             }
         }
         
         return deposit;
     }
     
-    /**
-     * Get deposit by address with decrypted private key
-     */
-    getDepositByAddressWithKey(address) {
-        const deposit = this.db.prepare('SELECT * FROM deposit_addresses WHERE address = ?').get(address);
+    async getDepositByAddressWithKey(address) {
+        const result = await this.query('SELECT * FROM deposit_addresses WHERE address = $1', [address]);
+        const deposit = result.rows[0];
         if (!deposit) return null;
         
         if (this.encryptionSecret && deposit.private_key && isEncrypted(deposit.private_key)) {
@@ -293,82 +279,108 @@ class PumpPoniesDB {
         return deposit;
     }
 
-    getDepositByAddress(address) {
-        return this.db.prepare('SELECT * FROM deposit_addresses WHERE address = ?').get(address);
+    async getDepositByAddress(address) {
+        const result = await this.query('SELECT * FROM deposit_addresses WHERE address = $1', [address]);
+        return result.rows[0] || null;
     }
 
-    getWaitingDeposits() {
-        return this.db.prepare(
-            "SELECT * FROM deposit_addresses WHERE status = 'waiting' AND expires_at > ?"
-        ).all(Math.floor(Date.now() / 1000));
+    async getWaitingDeposits() {
+        const now = Math.floor(Date.now() / 1000);
+        const result = await this.query(
+            "SELECT * FROM deposit_addresses WHERE status = 'waiting' AND expires_at > $1",
+            [now]
+        );
+        return result.rows;
     }
 
-    getExpiredDeposits() {
-        return this.db.prepare(
-            "SELECT * FROM deposit_addresses WHERE status = 'waiting' AND expires_at <= ?"
-        ).all(Math.floor(Date.now() / 1000));
+    async getExpiredDeposits() {
+        const now = Math.floor(Date.now() / 1000);
+        const result = await this.query(
+            "SELECT * FROM deposit_addresses WHERE status = 'waiting' AND expires_at <= $1",
+            [now]
+        );
+        return result.rows;
     }
 
-    updateDepositStatus(id, status, amountReceived = null, txSignature = null, userWallet = null) {
-        const updates = { status };
-        if (amountReceived !== null) updates.amount_received = amountReceived;
-        if (txSignature !== null) updates.transaction_signature = txSignature;
-        if (userWallet !== null) updates.user_wallet = userWallet;
-        if (status === 'confirmed') updates.confirmed_at = Math.floor(Date.now() / 1000);
-
-        const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-        const values = [...Object.values(updates), id];
-
-        this.db.prepare(`UPDATE deposit_addresses SET ${setClauses} WHERE id = ?`).run(...values);
-        return this.getDepositAddress(id);
+    async updateDepositStatus(id, status, amountReceived = null, txSignature = null, userWallet = null) {
+        const now = Math.floor(Date.now() / 1000);
+        let query = 'UPDATE deposit_addresses SET status = $1';
+        let params = [status];
+        let paramIndex = 2;
+        
+        if (amountReceived !== null) {
+            query += `, amount_received = $${paramIndex++}`;
+            params.push(amountReceived);
+        }
+        if (txSignature !== null) {
+            query += `, transaction_signature = $${paramIndex++}`;
+            params.push(txSignature);
+        }
+        if (userWallet !== null) {
+            query += `, user_wallet = $${paramIndex++}`;
+            params.push(userWallet);
+        }
+        if (status === 'confirmed') {
+            query += `, confirmed_at = $${paramIndex++}`;
+            params.push(now);
+        }
+        
+        query += ` WHERE id = $${paramIndex}`;
+        params.push(id);
+        
+        await this.query(query, params);
+        return await this.getDepositAddress(id);
     }
 
     // ===================
     // BET OPERATIONS
     // ===================
 
-    createBet(id, raceId, horseNumber, depositAddressId, userWallet, amount, txSignature, oddsAtPlacement) {
-        this.db.prepare(`
-            INSERT INTO bets (id, race_id, horse_number, deposit_address_id, user_wallet, amount, transaction_signature, odds_at_placement)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, raceId, horseNumber, depositAddressId, userWallet, amount, txSignature, oddsAtPlacement);
+    async createBet(id, raceId, horseNumber, depositAddressId, userWallet, amount, txSignature, oddsAtPlacement) {
+        await this.query(
+            `INSERT INTO bets (id, race_id, horse_number, deposit_address_id, user_wallet, amount, transaction_signature, odds_at_placement) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [id, raceId, horseNumber, depositAddressId, userWallet, amount, txSignature, oddsAtPlacement]
+        );
         
-        return this.getBet(id);
+        return await this.getBet(id);
     }
 
-    getBet(id) {
-        return this.db.prepare('SELECT * FROM bets WHERE id = ?').get(id);
+    async getBet(id) {
+        const result = await this.query('SELECT * FROM bets WHERE id = $1', [id]);
+        return result.rows[0] || null;
     }
 
-    getBetsForRace(raceId) {
-        return this.db.prepare('SELECT * FROM bets WHERE race_id = ? ORDER BY created_at').all(raceId);
+    async getBetsForRace(raceId) {
+        const result = await this.query('SELECT * FROM bets WHERE race_id = $1 ORDER BY created_at', [raceId]);
+        return result.rows;
     }
 
-    getBetsForUser(userWallet) {
-        return this.db.prepare('SELECT * FROM bets WHERE user_wallet = ? ORDER BY created_at DESC').all(userWallet);
+    async getBetsForUser(userWallet) {
+        const result = await this.query('SELECT * FROM bets WHERE user_wallet = $1 ORDER BY created_at DESC', [userWallet]);
+        return result.rows;
     }
 
-    getRacePoolStats(raceId) {
-        const stats = this.db.prepare(`
+    async getRacePoolStats(raceId) {
+        const result = await this.query(`
             SELECT 
                 horse_number,
                 COUNT(*) as bet_count,
-                SUM(amount) as total_amount
+                COALESCE(SUM(amount), 0) as total_amount
             FROM bets 
-            WHERE race_id = ?
+            WHERE race_id = $1
             GROUP BY horse_number
-        `).all(raceId);
+        `, [raceId]);
 
         const pools = {};
-        stats.forEach(s => {
+        result.rows.forEach(s => {
             pools[s.horse_number] = {
-                bets: s.bet_count,
-                amount: s.total_amount || 0
+                bets: parseInt(s.bet_count),
+                amount: parseFloat(s.total_amount) || 0
             };
         });
 
         // Fill in zeros for horses with no bets
-        const race = this.getRace(raceId);
+        const race = await this.getRace(raceId);
         if (race && race.horses) {
             race.horses.forEach(h => {
                 if (!pools[h.horse_number]) {
@@ -380,74 +392,113 @@ class PumpPoniesDB {
         return pools;
     }
 
-    updateBetWinnings(betId, winnings) {
-        this.db.prepare('UPDATE bets SET winnings = ? WHERE id = ?').run(winnings, betId);
+    async updateBetWinnings(betId, winnings) {
+        await this.query('UPDATE bets SET winnings = $1 WHERE id = $2', [winnings, betId]);
     }
 
-    getWinningBets(raceId, winningHorse) {
-        return this.db.prepare(
-            'SELECT * FROM bets WHERE race_id = ? AND horse_number = ?'
-        ).all(raceId, winningHorse);
+    async getWinningBets(raceId, winningHorse) {
+        const result = await this.query(
+            'SELECT * FROM bets WHERE race_id = $1 AND horse_number = $2',
+            [raceId, winningHorse]
+        );
+        return result.rows;
     }
 
     // ===================
     // PAYOUT OPERATIONS
     // ===================
 
-    createPayout(id, betId, userWallet, amount) {
-        this.db.prepare(`
-            INSERT INTO payouts (id, bet_id, user_wallet, amount)
-            VALUES (?, ?, ?, ?)
-        `).run(id, betId, userWallet, amount);
+    async createPayout(id, betId, userWallet, amount) {
+        await this.query(
+            `INSERT INTO payouts (id, bet_id, user_wallet, amount) VALUES ($1, $2, $3, $4)`,
+            [id, betId, userWallet, amount]
+        );
         
-        return this.getPayout(id);
+        return await this.getPayout(id);
     }
 
-    getPayout(id) {
-        return this.db.prepare('SELECT * FROM payouts WHERE id = ?').get(id);
+    async getPayout(id) {
+        const result = await this.query('SELECT * FROM payouts WHERE id = $1', [id]);
+        return result.rows[0] || null;
     }
 
-    getPendingPayouts() {
-        return this.db.prepare("SELECT * FROM payouts WHERE status = 'pending' ORDER BY created_at").all();
+    async getPendingPayouts() {
+        const result = await this.query("SELECT * FROM payouts WHERE status = 'pending' ORDER BY created_at");
+        return result.rows;
     }
 
-    updatePayoutStatus(id, status, txSignature = null, errorMessage = null) {
-        const updates = { status };
-        if (txSignature) updates.transaction_signature = txSignature;
-        if (errorMessage) updates.error_message = errorMessage;
-        if (status === 'completed' || status === 'failed') {
-            updates.processed_at = Math.floor(Date.now() / 1000);
+    async updatePayoutStatus(id, status, txSignature = null, errorMessage = null) {
+        const now = Math.floor(Date.now() / 1000);
+        let query = 'UPDATE payouts SET status = $1';
+        let params = [status];
+        let paramIndex = 2;
+        
+        if (txSignature) {
+            query += `, transaction_signature = $${paramIndex++}`;
+            params.push(txSignature);
         }
-
-        const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-        const values = [...Object.values(updates), id];
-
-        this.db.prepare(`UPDATE payouts SET ${setClauses} WHERE id = ?`).run(...values);
-        return this.getPayout(id);
+        if (errorMessage) {
+            query += `, error_message = $${paramIndex++}`;
+            params.push(errorMessage);
+        }
+        if (status === 'completed' || status === 'failed') {
+            query += `, processed_at = $${paramIndex++}`;
+            params.push(now);
+        }
+        
+        query += ` WHERE id = $${paramIndex}`;
+        params.push(id);
+        
+        await this.query(query, params);
+        return await this.getPayout(id);
     }
 
     // ===================
     // CONFIG OPERATIONS
     // ===================
 
-    setConfig(key, value) {
-        this.db.prepare(`
-            INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
-        `).run(key, value, Math.floor(Date.now() / 1000), value, Math.floor(Date.now() / 1000));
+    async setConfig(key, value) {
+        const now = Math.floor(Date.now() / 1000);
+        await this.query(`
+            INSERT INTO config (key, value, updated_at) VALUES ($1, $2, $3)
+            ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3
+        `, [key, value, now]);
     }
 
-    getConfig(key) {
-        const row = this.db.prepare('SELECT value FROM config WHERE key = ?').get(key);
-        return row ? row.value : null;
+    async getConfig(key) {
+        const result = await this.query('SELECT value FROM config WHERE key = $1', [key]);
+        return result.rows[0]?.value || null;
+    }
+
+    // ===================
+    // DIRECT QUERY ACCESS (for admin endpoints)
+    // ===================
+    
+    get db() {
+        // Compatibility layer for direct query access
+        return {
+            prepare: (sql) => ({
+                all: async (...params) => {
+                    const result = await this.query(sql.replace(/\?/g, (_, i) => `$${i + 1}`), params);
+                    return result.rows;
+                },
+                get: async (...params) => {
+                    const result = await this.query(sql.replace(/\?/g, (_, i) => `$${i + 1}`), params);
+                    return result.rows[0];
+                },
+                run: async (...params) => {
+                    await this.query(sql.replace(/\?/g, (_, i) => `$${i + 1}`), params);
+                }
+            })
+        };
     }
 
     // ===================
     // CLEANUP
     // ===================
 
-    close() {
-        this.db.close();
+    async close() {
+        await this.pool.end();
     }
 }
 

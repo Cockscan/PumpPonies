@@ -71,7 +71,7 @@ class PayoutService {
         let failed = 0;
 
         try {
-            const pendingPayouts = this.db.getPendingPayouts();
+            const pendingPayouts = await this.db.getPendingPayouts();
             console.log(`Processing ${pendingPayouts.length} pending payouts...`);
 
             // Check master wallet balance
@@ -88,7 +88,7 @@ class PayoutService {
                     processed++;
                 } catch (error) {
                     console.error(`Failed to process payout ${payout.id}:`, error);
-                    this.db.updatePayoutStatus(payout.id, 'failed', null, error.message);
+                    await this.db.updatePayoutStatus(payout.id, 'failed', null, error.message);
                     failed++;
                 }
             }
@@ -108,7 +108,7 @@ class PayoutService {
         console.log(`Processing payout ${payout.id}: ${payout.amount} SOL to ${payout.user_wallet.slice(0, 8)}...`);
 
         // Mark as processing
-        this.db.updatePayoutStatus(payout.id, 'processing');
+        await this.db.updatePayoutStatus(payout.id, 'processing');
 
         // Validate recipient address
         let recipientPubkey;
@@ -143,11 +143,13 @@ class PayoutService {
         console.log(`Payout ${payout.id} sent: ${signature}`);
 
         // Update payout status
-        this.db.updatePayoutStatus(payout.id, 'completed', signature);
+        await this.db.updatePayoutStatus(payout.id, 'completed', signature);
 
         // Update bet payout status
-        this.db.db.prepare('UPDATE bets SET payout_status = ?, payout_signature = ? WHERE id = ?')
-            .run('paid', signature, payout.bet_id);
+        await this.db.query(
+            'UPDATE bets SET payout_status = $1, payout_signature = $2 WHERE id = $3',
+            ['paid', signature, payout.bet_id]
+        );
 
         return signature;
     }
@@ -216,17 +218,17 @@ class PayoutService {
      * Collect funds from all confirmed deposit addresses
      */
     async collectAllDeposits() {
-        const confirmedDeposits = this.db.db.prepare(
+        const confirmedDepositsResult = await this.db.query(
             "SELECT id FROM deposit_addresses WHERE status = 'confirmed'"
-        ).all();
+        );
 
         let totalCollected = 0;
         let collected = 0;
 
-        for (const { id } of confirmedDeposits) {
+        for (const { id } of confirmedDepositsResult.rows) {
             try {
                 // Use method that decrypts private key
-                const deposit = this.db.getDepositAddressWithKey(id);
+                const deposit = await this.db.getDepositAddressWithKey(id);
                 if (!deposit || !deposit.private_key) {
                     console.error(`Cannot get private key for deposit ${id}`);
                     continue;
@@ -253,19 +255,19 @@ class PayoutService {
      * Process all pending refunds (send SOL back to users from deposit addresses)
      */
     async processAllRefunds() {
-        const pendingRefunds = this.db.db.prepare(
+        const pendingRefundsResult = await this.db.query(
             "SELECT r.*, d.address as deposit_address FROM refunds r JOIN deposit_addresses d ON r.deposit_id = d.id WHERE r.status = 'pending' ORDER BY r.created_at"
-        ).all();
+        );
 
-        console.log(`Processing ${pendingRefunds.length} pending refunds...`);
+        console.log(`Processing ${pendingRefundsResult.rows.length} pending refunds...`);
 
         let processed = 0;
         let failed = 0;
 
-        for (const refund of pendingRefunds) {
+        for (const refund of pendingRefundsResult.rows) {
             try {
                 // Get decrypted private key
-                const deposit = this.db.getDepositAddressWithKey(refund.deposit_id);
+                const deposit = await this.db.getDepositAddressWithKey(refund.deposit_id);
                 if (!deposit || !deposit.private_key) {
                     throw new Error('Cannot decrypt private key for refund');
                 }
@@ -277,9 +279,10 @@ class PayoutService {
                 }
             } catch (error) {
                 console.error(`Failed to process refund ${refund.id}:`, error);
-                this.db.db.prepare(
-                    "UPDATE refunds SET status = 'failed', error_message = ?, processed_at = ? WHERE id = ?"
-                ).run(error.message, Math.floor(Date.now() / 1000), refund.id);
+                await this.db.query(
+                    "UPDATE refunds SET status = 'failed', error_message = $1, processed_at = $2 WHERE id = $3",
+                    [error.message, Math.floor(Date.now() / 1000), refund.id]
+                );
                 failed++;
             }
         }
@@ -295,7 +298,7 @@ class PayoutService {
         console.log(`Processing refund ${refund.id}: ${refund.amount} SOL to ${refund.user_wallet.slice(0, 8)}...`);
 
         // Mark as processing
-        this.db.db.prepare("UPDATE refunds SET status = 'processing' WHERE id = ?").run(refund.id);
+        await this.db.query("UPDATE refunds SET status = 'processing' WHERE id = $1", [refund.id]);
 
         // Validate recipient address
         let recipientPubkey;
@@ -354,9 +357,10 @@ class PayoutService {
         console.log(`Refund ${refund.id} sent: ${signature}`);
 
         // Update refund status
-        this.db.db.prepare(
-            "UPDATE refunds SET status = 'completed', transaction_signature = ?, processed_at = ? WHERE id = ?"
-        ).run(signature, Math.floor(Date.now() / 1000), refund.id);
+        await this.db.query(
+            "UPDATE refunds SET status = 'completed', transaction_signature = $1, processed_at = $2 WHERE id = $3",
+            [signature, Math.floor(Date.now() / 1000), refund.id]
+        );
 
         return signature;
     }
@@ -364,11 +368,11 @@ class PayoutService {
     /**
      * Get pending refunds count
      */
-    getPendingRefundsCount() {
-        const result = this.db.db.prepare(
+    async getPendingRefundsCount() {
+        const result = await this.db.query(
             "SELECT COUNT(*) as count FROM refunds WHERE status = 'pending'"
-        ).get();
-        return result.count;
+        );
+        return parseInt(result.rows[0].count);
     }
 }
 

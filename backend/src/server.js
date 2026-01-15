@@ -37,7 +37,7 @@ const {
 const PORT = process.env.PORT || 20101;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-admin-token';
 const SOLANA_RPC = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const DB_PATH = process.env.DATABASE_PATH || './data/pump_ponies.db';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost:5432/pump_ponies';
 const MIN_BET = parseFloat(process.env.MIN_BET_SOL || 0.01);
 const MAX_BET = parseFloat(process.env.MAX_BET_SOL || 20);
 const DEPOSIT_EXPIRY_MINUTES = parseInt(process.env.DEPOSIT_EXPIRY_MINUTES || 30);
@@ -54,11 +54,10 @@ const DEFAULT_HORSES = [
 // Initialize services
 console.log('Initializing Pump Ponies Backend...');
 console.log(`Solana RPC: ${SOLANA_RPC}`);
-console.log(`Database: ${DB_PATH}`);
+console.log(`Database: PostgreSQL`);
 
 const connection = new Connection(SOLANA_RPC, 'confirmed');
-const db = new PumpPoniesDB(DB_PATH, ENCRYPTION_SECRET);
-db.initialize();
+const db = new PumpPoniesDB(DATABASE_URL, ENCRYPTION_SECRET);
 
 // Security check for encryption
 if (!ENCRYPTION_SECRET || ENCRYPTION_SECRET.length < 32) {
@@ -174,15 +173,15 @@ app.get('/health', (req, res) => {
 });
 
 // Get active race
-app.get('/race/active', (req, res) => {
+app.get('/race/active', async (req, res) => {
     try {
-        const race = db.getActiveRace();
+        const race = await db.getActiveRace();
         if (!race) {
             return respond(res, null, 'No active race');
         }
         
         // Add pool stats
-        const pools = db.getRacePoolStats(race.id);
+        const pools = await db.getRacePoolStats(race.id);
         respond(res, { ...race, pools });
     } catch (error) {
         respond(res, null, error.message);
@@ -190,9 +189,9 @@ app.get('/race/active', (req, res) => {
 });
 
 // Get all races
-app.get('/races', (req, res) => {
+app.get('/races', async (req, res) => {
     try {
-        const races = db.getAllRaces();
+        const races = await db.getAllRaces();
         respond(res, races);
     } catch (error) {
         respond(res, null, error.message);
@@ -200,14 +199,14 @@ app.get('/races', (req, res) => {
 });
 
 // Get specific race
-app.get('/race/:id', (req, res) => {
+app.get('/race/:id', async (req, res) => {
     try {
-        const race = db.getRace(req.params.id);
+        const race = await db.getRace(req.params.id);
         if (!race) {
             return respond(res, null, 'Race not found');
         }
         
-        const pools = db.getRacePoolStats(race.id);
+        const pools = await db.getRacePoolStats(race.id);
         respond(res, { ...race, pools });
     } catch (error) {
         respond(res, null, error.message);
@@ -215,9 +214,9 @@ app.get('/race/:id', (req, res) => {
 });
 
 // Get race pool stats
-app.get('/race/:id/pools', (req, res) => {
+app.get('/race/:id/pools', async (req, res) => {
     try {
-        const pools = db.getRacePoolStats(req.params.id);
+        const pools = await db.getRacePoolStats(req.params.id);
         const totalPool = Object.values(pools).reduce((sum, p) => sum + p.amount, 0);
         const totalBets = Object.values(pools).reduce((sum, p) => sum + p.bets, 0);
         
@@ -249,7 +248,7 @@ app.post('/bet/deposit-address',
         const { race_id, horse_number, user_wallet } = req.body;
         
         // Validate race exists and is open
-        const race = db.getRace(race_id);
+        const race = await db.getRace(race_id);
         if (!race) {
             return respond(res, null, 'Race not found');
         }
@@ -274,7 +273,7 @@ app.post('/bet/deposit-address',
         const expiresAt = Math.floor(Date.now() / 1000) + (DEPOSIT_EXPIRY_MINUTES * 60);
         
         // Store in database
-        const deposit = db.createDepositAddress(
+        const deposit = await db.createDepositAddress(
             depositId,
             publicKey,
             privateKey,
@@ -305,9 +304,9 @@ app.post('/bet/deposit-address',
 });
 
 // Check deposit status
-app.get('/bet/status/:deposit_id', (req, res) => {
+app.get('/bet/status/:deposit_id', async (req, res) => {
     try {
-        const deposit = db.getDepositAddress(req.params.deposit_id);
+        const deposit = await db.getDepositAddress(req.params.deposit_id);
         if (!deposit) {
             return respond(res, null, 'Deposit not found');
         }
@@ -317,11 +316,12 @@ app.get('/bet/status/:deposit_id', (req, res) => {
         
         // If confirmed, include bet details
         if (deposit.status === 'confirmed') {
-            const bet = db.db.prepare(
-                'SELECT * FROM bets WHERE deposit_address_id = ?'
-            ).get(deposit.id);
+            const betResult = await db.query(
+                'SELECT * FROM bets WHERE deposit_address_id = $1',
+                [deposit.id]
+            );
             
-            respond(res, { ...safeDeposit, bet });
+            respond(res, { ...safeDeposit, bet: betResult.rows[0] });
         } else {
             respond(res, safeDeposit);
         }
@@ -334,7 +334,7 @@ app.get('/bet/status/:deposit_id', (req, res) => {
 // Check deposit by address
 app.get('/bet/address/:address', async (req, res) => {
     try {
-        const deposit = db.getDepositByAddress(req.params.address);
+        const deposit = await db.getDepositByAddress(req.params.address);
         if (!deposit) {
             return respond(res, null, 'Deposit address not found');
         }
@@ -351,9 +351,9 @@ app.get('/bet/address/:address', async (req, res) => {
 });
 
 // Get bets for a race
-app.get('/race/:id/bets', (req, res) => {
+app.get('/race/:id/bets', async (req, res) => {
     try {
-        const bets = db.getBetsForRace(req.params.id);
+        const bets = await db.getBetsForRace(req.params.id);
         respond(res, bets);
     } catch (error) {
         respond(res, null, error.message);
@@ -361,13 +361,13 @@ app.get('/race/:id/bets', (req, res) => {
 });
 
 // Get bets for a user
-app.get('/user/:wallet/bets', (req, res) => {
+app.get('/user/:wallet/bets', async (req, res) => {
     try {
         if (!walletService.isValidAddress(req.params.wallet)) {
             return respond(res, null, 'Invalid wallet address');
         }
         
-        const bets = db.getBetsForUser(req.params.wallet);
+        const bets = await db.getBetsForUser(req.params.wallet);
         respond(res, bets);
     } catch (error) {
         respond(res, null, error.message);
@@ -379,7 +379,7 @@ app.get('/user/:wallet/bets', (req, res) => {
 // ===================
 
 // Create a new race
-app.post('/admin/race/create', adminAuth, (req, res) => {
+app.post('/admin/race/create', adminAuth, async (req, res) => {
     try {
         const { title, horses, start_time, predetermined_winner } = req.body;
         
@@ -395,7 +395,7 @@ app.post('/admin/race/create', adminAuth, (req, res) => {
         const raceId = 'race_' + Date.now().toString(36);
         const startTime = start_time || Math.floor(Date.now() / 1000) + 1800; // 30 min from now
         
-        const race = db.createRace(
+        const race = await db.createRace(
             raceId,
             title,
             horseNames,
@@ -417,7 +417,7 @@ app.post('/admin/race/create', adminAuth, (req, res) => {
 });
 
 // Open race for betting
-app.post('/admin/race/open', adminAuth, (req, res) => {
+app.post('/admin/race/open', adminAuth, async (req, res) => {
     try {
         const { race_id } = req.body;
         
@@ -425,7 +425,7 @@ app.post('/admin/race/open', adminAuth, (req, res) => {
             return respond(res, null, 'Missing race_id');
         }
         
-        const race = db.updateRaceStatus(race_id, 'open');
+        const race = await db.updateRaceStatus(race_id, 'open');
         if (!race) {
             return respond(res, null, 'Race not found');
         }
@@ -441,7 +441,7 @@ app.post('/admin/race/open', adminAuth, (req, res) => {
 });
 
 // Close race betting
-app.post('/admin/race/close', adminAuth, (req, res) => {
+app.post('/admin/race/close', adminAuth, async (req, res) => {
     try {
         const { race_id } = req.body;
         
@@ -449,13 +449,13 @@ app.post('/admin/race/close', adminAuth, (req, res) => {
             return respond(res, null, 'Missing race_id');
         }
         
-        const race = db.updateRaceStatus(race_id, 'closed');
+        const race = await db.updateRaceStatus(race_id, 'closed');
         if (!race) {
             return respond(res, null, 'Race not found');
         }
         
         // Get all bets for the race
-        const bets = db.getBetsForRace(race_id);
+        const bets = await db.getBetsForRace(race_id);
         
         console.log(`Race betting closed: ${race_id} (${bets.length} bets)`);
         broadcastToClients({ type: 'race_closed', race, total_bets: bets.length });
@@ -468,7 +468,7 @@ app.post('/admin/race/close', adminAuth, (req, res) => {
 });
 
 // End race and declare winner
-app.post('/admin/race/end', adminAuth, (req, res) => {
+app.post('/admin/race/end', adminAuth, async (req, res) => {
     try {
         const { race_id, winner } = req.body;
         
@@ -477,7 +477,7 @@ app.post('/admin/race/end', adminAuth, (req, res) => {
         }
         
         // Validate race exists
-        const race = db.getRace(race_id);
+        const race = await db.getRace(race_id);
         if (!race) {
             return respond(res, null, 'Race not found');
         }
@@ -488,10 +488,10 @@ app.post('/admin/race/end', adminAuth, (req, res) => {
         }
         
         // Calculate winnings
-        const results = depositMonitor.calculateWinnings(race_id, winner);
+        const results = await depositMonitor.calculateWinnings(race_id, winner);
         
         // Update race
-        const updatedRace = db.setRaceWinner(race_id, winner);
+        const updatedRace = await db.setRaceWinner(race_id, winner);
         
         console.log(`Race ended: ${race_id}, Winner: Horse #${winner}`);
         console.log(`Total pool: ${results.total_pool} SOL, ${results.winners.length} winners`);
@@ -517,9 +517,9 @@ app.post('/admin/payouts/process', adminAuth, async (req, res) => {
 });
 
 // Get pending payouts
-app.get('/admin/payouts/pending', adminAuth, (req, res) => {
+app.get('/admin/payouts/pending', adminAuth, async (req, res) => {
     try {
-        const payouts = db.getPendingPayouts();
+        const payouts = await db.getPendingPayouts();
         respond(res, payouts);
     } catch (error) {
         respond(res, null, error.message);
@@ -537,12 +537,12 @@ app.post('/admin/refunds/process', adminAuth, async (req, res) => {
 });
 
 // Get pending refunds
-app.get('/admin/refunds/pending', adminAuth, (req, res) => {
+app.get('/admin/refunds/pending', adminAuth, async (req, res) => {
     try {
-        const refunds = db.db.prepare(
+        const result = await db.query(
             "SELECT * FROM refunds WHERE status = 'pending' ORDER BY created_at"
-        ).all();
-        respond(res, refunds);
+        );
+        respond(res, result.rows);
     } catch (error) {
         respond(res, null, error.message);
     }
@@ -572,14 +572,14 @@ app.get('/admin/wallet/balance', adminAuth, async (req, res) => {
 });
 
 // Set config value
-app.post('/admin/config', adminAuth, (req, res) => {
+app.post('/admin/config', adminAuth, async (req, res) => {
     try {
         const { key, value } = req.body;
         if (!key || value === undefined) {
             return respond(res, null, 'Missing key or value');
         }
         
-        db.setConfig(key, value);
+        await db.setConfig(key, value);
         respond(res, { key, value });
     } catch (error) {
         respond(res, null, error.message);
@@ -587,9 +587,9 @@ app.post('/admin/config', adminAuth, (req, res) => {
 });
 
 // Get config value
-app.get('/admin/config/:key', adminAuth, (req, res) => {
+app.get('/admin/config/:key', adminAuth, async (req, res) => {
     try {
-        const value = db.getConfig(req.params.key);
+        const value = await db.getConfig(req.params.key);
         respond(res, { key: req.params.key, value });
     } catch (error) {
         respond(res, null, error.message);
@@ -603,7 +603,7 @@ app.get('/admin/config/:key', adminAuth, (req, res) => {
 // Get dashboard statistics
 app.get('/admin/stats', adminAuth, async (req, res) => {
     try {
-        const races = db.getAllRaces();
+        const races = await db.getAllRaces();
         const activeRaces = races.filter(r => r.status === 'open' || r.status === 'closed');
         const completedRaces = races.filter(r => r.status === 'completed');
         
@@ -611,19 +611,20 @@ app.get('/admin/stats', adminAuth, async (req, res) => {
         let totalPool = 0;
         let totalBets = 0;
         for (const race of activeRaces) {
-            const pools = db.getRacePoolStats(race.id);
+            const pools = await db.getRacePoolStats(race.id);
             totalPool += Object.values(pools).reduce((sum, p) => sum + (p.amount || 0), 0);
             totalBets += Object.values(pools).reduce((sum, p) => sum + (p.bets || 0), 0);
         }
         
         // Get pending payouts
-        const pendingPayouts = db.getPendingPayouts();
+        const pendingPayouts = await db.getPendingPayouts();
         const pendingPayoutTotal = pendingPayouts.reduce((sum, p) => sum + (p.winnings || 0), 0);
         
         // Get pending refunds
-        const pendingRefunds = db.db.prepare(
+        const pendingRefundsResult = await db.query(
             "SELECT SUM(amount) as total FROM refunds WHERE status = 'pending'"
-        ).get();
+        );
+        const pendingRefunds = pendingRefundsResult.rows[0];
         
         // Get master wallet balance
         let masterBalance = 0;
@@ -649,23 +650,24 @@ app.get('/admin/stats', adminAuth, async (req, res) => {
 });
 
 // Get all deposits for admin
-app.get('/admin/deposits', adminAuth, (req, res) => {
+app.get('/admin/deposits', adminAuth, async (req, res) => {
     try {
         const status = req.query.status; // Optional filter
-        let deposits;
+        let result;
         
         if (status) {
-            deposits = db.db.prepare(
-                'SELECT d.*, r.title as race_title FROM deposit_addresses d LEFT JOIN races r ON d.race_id = r.id WHERE d.status = ? ORDER BY d.created_at DESC LIMIT 100'
-            ).all(status);
+            result = await db.query(
+                'SELECT d.*, r.title as race_title FROM deposit_addresses d LEFT JOIN races r ON d.race_id = r.id WHERE d.status = $1 ORDER BY d.created_at DESC LIMIT 100',
+                [status]
+            );
         } else {
-            deposits = db.db.prepare(
+            result = await db.query(
                 'SELECT d.*, r.title as race_title FROM deposit_addresses d LEFT JOIN races r ON d.race_id = r.id ORDER BY d.created_at DESC LIMIT 100'
-            ).all();
+            );
         }
         
         // Don't expose private keys
-        const safeDeposits = deposits.map(({ private_key, ...d }) => d);
+        const safeDeposits = result.rows.map(({ private_key, ...d }) => d);
         respond(res, safeDeposits);
     } catch (error) {
         respond(res, null, error.message);
@@ -673,22 +675,23 @@ app.get('/admin/deposits', adminAuth, (req, res) => {
 });
 
 // Get all bets for admin
-app.get('/admin/bets', adminAuth, (req, res) => {
+app.get('/admin/bets', adminAuth, async (req, res) => {
     try {
         const race_id = req.query.race_id;
-        let bets;
+        let result;
         
         if (race_id) {
-            bets = db.db.prepare(
-                'SELECT b.*, r.title as race_title FROM bets b LEFT JOIN races r ON b.race_id = r.id WHERE b.race_id = ? ORDER BY b.created_at DESC'
-            ).all(race_id);
+            result = await db.query(
+                'SELECT b.*, r.title as race_title FROM bets b LEFT JOIN races r ON b.race_id = r.id WHERE b.race_id = $1 ORDER BY b.created_at DESC',
+                [race_id]
+            );
         } else {
-            bets = db.db.prepare(
+            result = await db.query(
                 'SELECT b.*, r.title as race_title FROM bets b LEFT JOIN races r ON b.race_id = r.id ORDER BY b.created_at DESC LIMIT 200'
-            ).all();
+            );
         }
         
-        respond(res, bets);
+        respond(res, result.rows);
     } catch (error) {
         respond(res, null, error.message);
     }
@@ -706,24 +709,24 @@ app.get('/admin/audit-logs', adminAuth, (req, res) => {
 });
 
 // Delete a race (only if no bets placed)
-app.delete('/admin/race/:id', adminAuth, (req, res) => {
+app.delete('/admin/race/:id', adminAuth, async (req, res) => {
     try {
         const raceId = req.params.id;
-        const race = db.getRace(raceId);
+        const race = await db.getRace(raceId);
         
         if (!race) {
             return respond(res, null, 'Race not found');
         }
         
         // Check if any bets exist
-        const bets = db.getBetsForRace(raceId);
+        const bets = await db.getBetsForRace(raceId);
         if (bets.length > 0) {
             return respond(res, null, 'Cannot delete race with existing bets. Complete or refund bets first.');
         }
         
         // Delete race
-        db.db.prepare('DELETE FROM horses WHERE race_id = ?').run(raceId);
-        db.db.prepare('DELETE FROM races WHERE id = ?').run(raceId);
+        await db.query('DELETE FROM horses WHERE race_id = $1', [raceId]);
+        await db.query('DELETE FROM races WHERE id = $1', [raceId]);
         
         console.log(`[ADMIN] Race deleted: ${raceId}`);
         respond(res, { deleted: raceId });
@@ -752,11 +755,11 @@ let wss;
 // MONITOR CALLBACKS
 // ===================
 
-depositMonitor.onBetCreated = (bet, race) => {
+depositMonitor.onBetCreated = async (bet, race) => {
     console.log(`[WS] Broadcasting new bet: ${bet.amount} SOL on horse #${bet.horse_number}`);
     
     // Get updated pool stats
-    const pools = db.getRacePoolStats(race.id);
+    const pools = await db.getRacePoolStats(race.id);
     
     broadcastToClients({
         type: 'bet_placed',
@@ -774,63 +777,89 @@ depositMonitor.onBetCreated = (bet, race) => {
 // START SERVER
 // ===================
 
-const server = app.listen(PORT, () => {
-    console.log(`\n========================================`);
-    console.log(`  PUMP PONIES BACKEND`);
-    console.log(`========================================`);
-    console.log(`  Server running on port ${PORT}`);
-    console.log(`  Solana RPC: ${SOLANA_RPC}`);
-    console.log(`  Min bet: ${MIN_BET} SOL`);
-    console.log(`  Max bet: ${MAX_BET} SOL`);
-    console.log(`  Deposit expiry: ${DEPOSIT_EXPIRY_MINUTES} minutes`);
-    console.log(`  Monitor interval: ${MONITOR_INTERVAL}ms`);
-    console.log(`========================================\n`);
-    
-    // Start deposit monitor
-    depositMonitor.start();
-});
-
-// WebSocket server
-wss = new WebSocket.Server({ server, path: '/ws' });
-
-wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
-    wsClients.add(ws);
-    
-    // Send current active race on connect
-    const race = db.getActiveRace();
-    if (race) {
-        const pools = db.getRacePoolStats(race.id);
-        ws.send(JSON.stringify({ type: 'connected', race: { ...race, pools } }));
-    } else {
-        ws.send(JSON.stringify({ type: 'connected', race: null }));
+// Start server with async database initialization
+async function startServer() {
+    try {
+        // Initialize database
+        await db.initialize();
+        console.log('Database connected and initialized');
+        
+        const server = app.listen(PORT, () => {
+            console.log(`\n========================================`);
+            console.log(`  PUMP PONIES BACKEND`);
+            console.log(`========================================`);
+            console.log(`  Server running on port ${PORT}`);
+            console.log(`  Solana RPC: ${SOLANA_RPC}`);
+            console.log(`  Database: PostgreSQL`);
+            console.log(`  Min bet: ${MIN_BET} SOL`);
+            console.log(`  Max bet: ${MAX_BET} SOL`);
+            console.log(`  Deposit expiry: ${DEPOSIT_EXPIRY_MINUTES} minutes`);
+            console.log(`  Monitor interval: ${MONITOR_INTERVAL}ms`);
+            console.log(`========================================\n`);
+            
+            // Start deposit monitor
+            depositMonitor.start();
+        });
+        
+        return server;
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
     }
-    
-    ws.on('close', () => {
-        console.log('WebSocket client disconnected');
-        wsClients.delete(ws);
-    });
-    
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        wsClients.delete(ws);
+}
+
+const serverPromise = startServer();
+let server;
+
+// WebSocket server setup after server starts
+serverPromise.then((srv) => {
+    server = srv;
+    wss = new WebSocket.Server({ server: srv, path: '/ws' });
+
+    wss.on('connection', async (ws) => {
+        console.log('WebSocket client connected');
+        wsClients.add(ws);
+        
+        // Send current active race on connect
+        try {
+            const race = await db.getActiveRace();
+            if (race) {
+                const pools = await db.getRacePoolStats(race.id);
+                ws.send(JSON.stringify({ type: 'connected', race: { ...race, pools } }));
+            } else {
+                ws.send(JSON.stringify({ type: 'connected', race: null }));
+            }
+        } catch (error) {
+            console.error('Error sending initial race data:', error);
+            ws.send(JSON.stringify({ type: 'connected', race: null }));
+        }
+        
+        ws.on('close', () => {
+            console.log('WebSocket client disconnected');
+            wsClients.delete(ws);
+        });
+        
+        ws.on('error', (error) => {
+            console.error('WebSocket error:', error);
+            wsClients.delete(ws);
+        });
     });
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('\nShutting down...');
     depositMonitor.stop();
-    db.close();
-    server.close();
+    await db.close();
+    if (server) server.close();
     process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     console.log('\nShutting down...');
     depositMonitor.stop();
-    db.close();
-    server.close();
+    await db.close();
+    if (server) server.close();
     process.exit(0);
 });
 
