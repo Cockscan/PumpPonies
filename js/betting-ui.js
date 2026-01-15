@@ -338,18 +338,19 @@ class BettingUI {
         }
         
         container.innerHTML = this.completedRaces.slice(0, 5).map(race => {
-            const winnerHorse = race.horses.find(h => h.id === race.winner);
-            const winnerName = winnerHorse ? winnerHorse.name : `Horse #${race.winner}`;
-            const totalPool = api.getTotalPool(race);
+            // Handle case where horses array might not be included
+            const winnerHorse = race.horses?.find(h => (h.horse_number || h.id) === race.winner);
+            const winnerName = winnerHorse ? winnerHorse.name : `Horse #${race.winner || '?'}`;
+            const totalPool = race.pools ? api.getTotalPool(race) : 0;
             
             return `
                 <div class="race-history-card">
                     <div class="race-history-info">
-                        <h4>${race.title}</h4>
+                        <h4>${race.title || 'Race'}</h4>
                         <p>Total Pool: ${totalPool.toFixed(2)} SOL</p>
                     </div>
                     <div class="race-winner">
-                        <div class="winner-badge">🏆 #${race.winner} - ${winnerName}</div>
+                        <div class="winner-badge">🏆 #${race.winner || '?'} - ${winnerName}</div>
                     </div>
                 </div>
             `;
