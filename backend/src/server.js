@@ -96,7 +96,17 @@ const corsOptions = {
             return callback(null, true);
         }
         
-        // In production, check ALLOWED_ORIGINS
+        // Always allow production domains
+        const productionDomains = [
+            'https://pumpponies.fun',
+            'https://www.pumpponies.fun',
+            'https://pumpponies.vercel.app'
+        ];
+        if (productionDomains.includes(origin)) {
+            return callback(null, true);
+        }
+        
+        // In production, also check ALLOWED_ORIGINS env var
         const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
         if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
             return callback(null, true);
