@@ -203,25 +203,34 @@ class BettingUI {
         const statusEl = document.getElementById('race-status');
         const titleEl = document.getElementById('race-title');
         const infoEl = document.getElementById('race-info');
+        const countdownEl = document.getElementById('race-countdown');
         
         if (!this.activeRace) {
             statusEl.textContent = 'NO ACTIVE RACE';
             statusEl.classList.add('closed');
             titleEl.textContent = 'Next Race Coming Soon';
             infoEl.textContent = '10 Runners • Check back for race times';
+            if (countdownEl) countdownEl.style.display = 'none';
             return;
         }
         
-        // Update status badge
+        // Update status badge and countdown visibility
         if (this.activeRace.status === 'open') {
             statusEl.textContent = 'BETTING OPEN';
             statusEl.classList.remove('closed');
+            if (countdownEl) countdownEl.style.display = 'flex';
         } else if (this.activeRace.status === 'closed') {
             statusEl.textContent = 'BETTING CLOSED';
             statusEl.classList.add('closed');
+            if (countdownEl) countdownEl.style.display = 'none';
         } else if (this.activeRace.status === 'pending') {
             statusEl.textContent = 'COMING SOON';
             statusEl.classList.add('closed');
+            if (countdownEl) countdownEl.style.display = 'flex';
+        } else if (this.activeRace.status === 'completed') {
+            statusEl.textContent = 'RACE COMPLETED';
+            statusEl.classList.add('closed');
+            if (countdownEl) countdownEl.style.display = 'none';
         }
         
         titleEl.textContent = this.activeRace.title;
