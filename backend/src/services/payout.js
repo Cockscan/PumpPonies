@@ -180,18 +180,36 @@ class PayoutService {
             return null;
         }
 
-        // Calculate amounts
-        const fee = 10000; // 0.00001 SOL for transaction fees (extra for potential 2 transfers)
-        const amountToSend = balance - fee;
+        // Calculate amounts - need enough for fee and rent
+        const fee = 5000; // 0.000005 SOL for transaction fee
+        const minRent = 890880; // Minimum rent for account
+        
+        // For small amounts, send everything to master wallet (no split)
+        // Only split if amount is significant enough (> 0.05 SOL)
+        const minAmountForSplit = 0.05 * LAMPORTS_PER_SOL;
+        const shouldSplit = this.houseWalletAddress && balance > minAmountForSplit;
+        
+        let amountToSend;
+        let houseCut = 0;
+        let masterAmount;
+        
+        if (shouldSplit) {
+            // Split between master and house wallet
+            const totalFees = 10000; // Higher fee for 2 transfers
+            amountToSend = balance - totalFees;
+            houseCut = Math.floor(amountToSend * this.houseEdgePercent);
+            masterAmount = amountToSend - houseCut;
+        } else {
+            // Send everything to master wallet
+            amountToSend = balance - fee;
+            masterAmount = amountToSend;
+            houseCut = 0;
+        }
 
         if (amountToSend <= 0) {
             console.log(`Balance too low to collect from ${depositAddress}`);
             return null;
         }
-
-        // Calculate house cut and master wallet amount
-        const houseCut = this.houseWalletAddress ? Math.floor(amountToSend * this.houseEdgePercent) : 0;
-        const masterAmount = amountToSend - houseCut;
 
         // Create transaction
         const transaction = new Transaction();
@@ -205,8 +223,8 @@ class PayoutService {
             })
         );
 
-        // Add transfer to house wallet if configured
-        if (this.houseWalletAddress && houseCut > 0) {
+        // Add transfer to house wallet if splitting
+        if (shouldSplit && houseCut > 0) {
             try {
                 const houseWalletPubkey = new PublicKey(this.houseWalletAddress);
                 transaction.add(
@@ -219,8 +237,9 @@ class PayoutService {
                 console.log(`House cut: ${houseCut / LAMPORTS_PER_SOL} SOL to ${this.houseWalletAddress.slice(0, 8)}...`);
             } catch (error) {
                 console.error('Invalid house wallet address:', error);
-                // If house wallet is invalid, send everything to master
             }
+        } else if (this.houseWalletAddress) {
+            console.log(`Amount too small for split (${balance / LAMPORTS_PER_SOL} SOL) - sending all to master wallet`);
         }
 
         // Get recent blockhash
