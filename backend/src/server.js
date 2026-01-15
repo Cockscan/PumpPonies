@@ -81,12 +81,26 @@ const payoutService = new PayoutService(
 // Express app
 const app = express();
 
-// SECURITY: Configure CORS with specific origins in production
+// SECURITY: Configure CORS - allow localhost for admin panel
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-        ? process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
-        : true,
-    methods: ['GET', 'POST'],
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        
+        // Always allow localhost (for local admin panel)
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            return callback(null, true);
+        }
+        
+        // In production, check ALLOWED_ORIGINS
+        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        
+        callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400 // 24 hours
