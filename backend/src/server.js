@@ -43,6 +43,8 @@ const MAX_BET = parseFloat(process.env.MAX_BET_SOL || 20);
 const DEPOSIT_EXPIRY_MINUTES = parseInt(process.env.DEPOSIT_EXPIRY_MINUTES || 30);
 const MONITOR_INTERVAL = parseInt(process.env.MONITOR_INTERVAL_MS || 5000);
 const ENCRYPTION_SECRET = process.env.ENCRYPTION_SECRET; // For encrypting private keys in DB
+const HOUSE_WALLET = process.env.HOUSE_WALLET_ADDRESS; // Separate wallet for house cut
+const HOUSE_EDGE_PERCENT = parseFloat(process.env.HOUSE_EDGE_PERCENT || 5);
 
 // Default horse names
 const DEFAULT_HORSES = [
@@ -75,7 +77,9 @@ const depositMonitor = new DepositMonitor(db, walletService, {
 const payoutService = new PayoutService(
     connection, 
     db, 
-    process.env.MASTER_WALLET_PRIVATE_KEY
+    process.env.MASTER_WALLET_PRIVATE_KEY,
+    HOUSE_WALLET,
+    HOUSE_EDGE_PERCENT
 );
 
 // Express app

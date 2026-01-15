@@ -14,11 +14,17 @@ const {
 const bs58 = require('bs58');
 
 class PayoutService {
-    constructor(connection, db, masterWalletPrivateKey) {
+    constructor(connection, db, masterWalletPrivateKey, houseWalletAddress = null, houseEdgePercent = 5) {
         this.connection = connection;
         this.db = db;
         this.masterWallet = this.loadMasterWallet(masterWalletPrivateKey);
+        this.houseWalletAddress = houseWalletAddress;
+        this.houseEdgePercent = houseEdgePercent / 100;
         this.isProcessing = false;
+        
+        if (this.houseWalletAddress) {
+            console.log(`House wallet configured: ${this.houseWalletAddress}`);
+        }
     }
 
     /**
@@ -155,7 +161,7 @@ class PayoutService {
     }
 
     /**
-     * Collect funds from deposit addresses to master wallet
+     * Collect funds from deposit addresses - splits between master wallet and house wallet
      */
     async collectFromDepositAddress(depositAddress, privateKey) {
         if (!this.masterWallet) {
@@ -174,9 +180,8 @@ class PayoutService {
             return null;
         }
 
-        // Calculate amount to send (minus rent and tx fee)
-        const fee = 5000; // 0.000005 SOL for transaction fee
-        const rentExempt = await this.connection.getMinimumBalanceForRentExemption(0);
+        // Calculate amounts
+        const fee = 10000; // 0.00001 SOL for transaction fees (extra for potential 2 transfers)
         const amountToSend = balance - fee;
 
         if (amountToSend <= 0) {
@@ -184,14 +189,39 @@ class PayoutService {
             return null;
         }
 
-        // Create transfer transaction
-        const transaction = new Transaction().add(
+        // Calculate house cut and master wallet amount
+        const houseCut = this.houseWalletAddress ? Math.floor(amountToSend * this.houseEdgePercent) : 0;
+        const masterAmount = amountToSend - houseCut;
+
+        // Create transaction
+        const transaction = new Transaction();
+
+        // Add transfer to master wallet
+        transaction.add(
             SystemProgram.transfer({
                 fromPubkey: depositKeypair.publicKey,
                 toPubkey: this.masterWallet.publicKey,
-                lamports: amountToSend
+                lamports: masterAmount
             })
         );
+
+        // Add transfer to house wallet if configured
+        if (this.houseWalletAddress && houseCut > 0) {
+            try {
+                const houseWalletPubkey = new PublicKey(this.houseWalletAddress);
+                transaction.add(
+                    SystemProgram.transfer({
+                        fromPubkey: depositKeypair.publicKey,
+                        toPubkey: houseWalletPubkey,
+                        lamports: houseCut
+                    })
+                );
+                console.log(`House cut: ${houseCut / LAMPORTS_PER_SOL} SOL to ${this.houseWalletAddress.slice(0, 8)}...`);
+            } catch (error) {
+                console.error('Invalid house wallet address:', error);
+                // If house wallet is invalid, send everything to master
+            }
+        }
 
         // Get recent blockhash
         const { blockhash } = await this.connection.getLatestBlockhash();
@@ -207,10 +237,13 @@ class PayoutService {
         );
 
         console.log(`Collected ${amountToSend / LAMPORTS_PER_SOL} SOL from ${depositAddress}: ${signature}`);
+        console.log(`  Master: ${masterAmount / LAMPORTS_PER_SOL} SOL, House: ${houseCut / LAMPORTS_PER_SOL} SOL`);
 
         return {
             signature,
-            amount: amountToSend / LAMPORTS_PER_SOL
+            amount: amountToSend / LAMPORTS_PER_SOL,
+            masterAmount: masterAmount / LAMPORTS_PER_SOL,
+            houseCut: houseCut / LAMPORTS_PER_SOL
         };
     }
 
