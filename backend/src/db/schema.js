@@ -197,38 +197,37 @@ class PumpPoniesDB {
     }
 
     async deleteCompletedRaces() {
-        // Log all races first to debug
-        const allRaces = await this.query("SELECT id, status, title FROM races");
-        console.log('[DELETE] All races in DB:', allRaces.rows);
-        
         // Get completed race IDs first
         const racesResult = await this.query("SELECT id FROM races WHERE status = 'completed'");
         const raceIds = racesResult.rows.map(r => r.id);
         
-        console.log('[DELETE] Found completed races:', raceIds);
-        
-        if (raceIds.length === 0) {
-            console.log('[DELETE] No completed races to delete');
-            return 0;
-        }
+        if (raceIds.length === 0) return 0;
         
         // Delete related data in order (foreign key constraints)
         for (const raceId of raceIds) {
-            console.log('[DELETE] Deleting race:', raceId);
-            // Delete payouts
             await this.query('DELETE FROM payouts WHERE race_id = $1', [raceId]);
-            // Delete bets
             await this.query('DELETE FROM bets WHERE race_id = $1', [raceId]);
-            // Delete deposit addresses
             await this.query('DELETE FROM deposit_addresses WHERE race_id = $1', [raceId]);
-            // Delete horses
             await this.query('DELETE FROM horses WHERE race_id = $1', [raceId]);
-            // Delete race
             await this.query('DELETE FROM races WHERE id = $1', [raceId]);
-            console.log('[DELETE] Deleted race:', raceId);
         }
         
         return raceIds.length;
+    }
+
+    async clearAllData() {
+        // Nuclear option - delete everything for a clean slate
+        console.log('[CLEAR] Clearing all data from database...');
+        
+        // Delete in order due to foreign key constraints
+        await this.query('DELETE FROM payouts');
+        await this.query('DELETE FROM bets');
+        await this.query('DELETE FROM deposit_addresses');
+        await this.query('DELETE FROM horses');
+        await this.query('DELETE FROM races');
+        
+        console.log('[CLEAR] All data cleared');
+        return true;
     }
 
     async updateRaceStatus(id, status) {

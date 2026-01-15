@@ -597,6 +597,17 @@ app.post('/admin/races/delete-completed', adminAuth, async (req, res) => {
     }
 });
 
+// Clear ALL data (nuclear option for clean slate)
+app.post('/admin/clear-all-data', adminAuth, async (req, res) => {
+    try {
+        await db.clearAllData();
+        console.log(`[ADMIN] ⚠️ ALL DATA CLEARED`);
+        respond(res, { message: 'All data cleared successfully' });
+    } catch (error) {
+        respond(res, null, error.message);
+    }
+});
+
 // Get master wallet balance
 app.get('/admin/wallet/balance', adminAuth, async (req, res) => {
     try {
