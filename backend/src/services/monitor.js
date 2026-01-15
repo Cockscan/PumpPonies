@@ -10,6 +10,7 @@ class DepositMonitor {
     constructor(db, walletService, config = {}) {
         this.db = db;
         this.walletService = walletService;
+        this.payoutService = null; // Set by server.js for auto-forwarding
         this.intervalMs = config.intervalMs || 5000;
         this.minBet = config.minBet || 0.01;
         this.maxBet = config.maxBet || 20;
@@ -26,6 +27,13 @@ class DepositMonitor {
         this.onDepositConfirmed = null;
         this.onBetCreated = null;
         this.onRefundNeeded = null;  // Callback when refund is needed
+    }
+    
+    /**
+     * Set payout service for auto-forwarding funds
+     */
+    setPayoutService(payoutService) {
+        this.payoutService = payoutService;
     }
 
     /**
@@ -240,6 +248,26 @@ class DepositMonitor {
         );
 
         console.log(`Bet created: ${betId} - ${transfer.amount} SOL on horse #${deposit.horse_number}`);
+
+        // Auto-forward funds to master wallet
+        if (this.payoutService) {
+            try {
+                // Get deposit with decrypted private key
+                const depositWithKey = await this.db.getDepositAddressWithKey(deposit.id);
+                if (depositWithKey && depositWithKey.private_key) {
+                    const result = await this.payoutService.collectFromDepositAddress(
+                        depositWithKey.address,
+                        depositWithKey.private_key
+                    );
+                    if (result) {
+                        console.log(`Auto-forwarded ${result.amount} SOL to master wallet (${result.masterAmount} SOL) and house (${result.houseCut} SOL)`);
+                    }
+                }
+            } catch (err) {
+                console.error('Auto-forward failed:', err.message);
+                // Don't fail the bet, just log the error - funds can be collected manually later
+            }
+        }
 
         // Trigger callbacks
         if (this.onDepositConfirmed) {

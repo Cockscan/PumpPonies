@@ -821,6 +821,9 @@ async function startServer() {
         dbReady = true;
         console.log('Database connected and initialized');
         
+        // Connect payout service to monitor for auto-forwarding
+        depositMonitor.setPayoutService(payoutService);
+        
         // Start deposit monitor after DB is ready
         depositMonitor.start();
     } catch (error) {
