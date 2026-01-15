@@ -169,7 +169,7 @@ app.use('/admin', rateLimit('admin'));
 
 // Health check
 app.get('/health', (req, res) => {
-    respond(res, { status: 'ok', timestamp: Date.now() });
+    respond(res, { status: 'ok', database: dbReady ? 'connected' : 'connecting', timestamp: Date.now() });
 });
 
 // Get active race
@@ -777,35 +777,40 @@ depositMonitor.onBetCreated = async (bet, race) => {
 // START SERVER
 // ===================
 
+// Track database ready state
+let dbReady = false;
+
 // Start server with async database initialization
 async function startServer() {
+    // Start HTTP server first (for health checks)
+    const server = app.listen(PORT, () => {
+        console.log(`\n========================================`);
+        console.log(`  PUMP PONIES BACKEND`);
+        console.log(`========================================`);
+        console.log(`  Server running on port ${PORT}`);
+        console.log(`  Solana RPC: ${SOLANA_RPC}`);
+        console.log(`  Database: PostgreSQL`);
+        console.log(`  Min bet: ${MIN_BET} SOL`);
+        console.log(`  Max bet: ${MAX_BET} SOL`);
+        console.log(`  Deposit expiry: ${DEPOSIT_EXPIRY_MINUTES} minutes`);
+        console.log(`  Monitor interval: ${MONITOR_INTERVAL}ms`);
+        console.log(`========================================\n`);
+    });
+    
+    // Initialize database in background
     try {
-        // Initialize database
         await db.initialize();
+        dbReady = true;
         console.log('Database connected and initialized');
         
-        const server = app.listen(PORT, () => {
-            console.log(`\n========================================`);
-            console.log(`  PUMP PONIES BACKEND`);
-            console.log(`========================================`);
-            console.log(`  Server running on port ${PORT}`);
-            console.log(`  Solana RPC: ${SOLANA_RPC}`);
-            console.log(`  Database: PostgreSQL`);
-            console.log(`  Min bet: ${MIN_BET} SOL`);
-            console.log(`  Max bet: ${MAX_BET} SOL`);
-            console.log(`  Deposit expiry: ${DEPOSIT_EXPIRY_MINUTES} minutes`);
-            console.log(`  Monitor interval: ${MONITOR_INTERVAL}ms`);
-            console.log(`========================================\n`);
-            
-            // Start deposit monitor
-            depositMonitor.start();
-        });
-        
-        return server;
+        // Start deposit monitor after DB is ready
+        depositMonitor.start();
     } catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
+        console.error('Database initialization failed:', error);
+        console.log('Server running but database not available');
     }
+    
+    return server;
 }
 
 const serverPromise = startServer();
