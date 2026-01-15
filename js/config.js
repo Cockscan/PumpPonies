@@ -48,7 +48,7 @@ const CONFIG = {
         '#a855f7'  // 10 - Foalment - Purple
     ],
     
-    // Master Stream URL (Pump.fun) - set via admin panel
+    // Stream URL - set via admin panel (both Watch Live and Buy on Pump buttons)
     STREAM_URL: 'https://pump.fun',
     
     // Admin token (should match backend ADMIN_TOKEN in .env)
