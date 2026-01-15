@@ -196,6 +196,30 @@ class PumpPoniesDB {
         return result.rows;
     }
 
+    async deleteCompletedRaces() {
+        // Get completed race IDs first
+        const racesResult = await this.query("SELECT id FROM races WHERE status = 'completed'");
+        const raceIds = racesResult.rows.map(r => r.id);
+        
+        if (raceIds.length === 0) return 0;
+        
+        // Delete related data in order (foreign key constraints)
+        for (const raceId of raceIds) {
+            // Delete payouts
+            await this.query('DELETE FROM payouts WHERE race_id = $1', [raceId]);
+            // Delete bets
+            await this.query('DELETE FROM bets WHERE race_id = $1', [raceId]);
+            // Delete deposit addresses
+            await this.query('DELETE FROM deposit_addresses WHERE race_id = $1', [raceId]);
+            // Delete horses
+            await this.query('DELETE FROM horses WHERE race_id = $1', [raceId]);
+            // Delete race
+            await this.query('DELETE FROM races WHERE id = $1', [raceId]);
+        }
+        
+        return raceIds.length;
+    }
+
     async updateRaceStatus(id, status) {
         const now = Math.floor(Date.now() / 1000);
         let query, params;

@@ -576,6 +576,17 @@ app.post('/admin/collect-deposits', adminAuth, async (req, res) => {
     }
 });
 
+// Delete all completed races
+app.post('/admin/races/delete-completed', adminAuth, async (req, res) => {
+    try {
+        const deleted = await db.deleteCompletedRaces();
+        console.log(`[ADMIN] Deleted ${deleted} completed races`);
+        respond(res, { deleted });
+    } catch (error) {
+        respond(res, null, error.message);
+    }
+});
+
 // Get master wallet balance
 app.get('/admin/wallet/balance', adminAuth, async (req, res) => {
     try {
