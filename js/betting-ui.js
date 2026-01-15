@@ -492,13 +492,17 @@ class BettingUI {
         const addressEl = document.getElementById('deposit-address');
         addressEl.textContent = 'Generating address...';
         
+        console.log('Generating deposit address for race:', this.activeRace.id, 'horse:', horseId);
         const resp = await api.generateDepositAddress(this.activeRace.id, horseId);
+        console.log('Deposit address response:', resp);
         
-        if (resp.success) {
+        if (resp.success && resp.data) {
             this.currentDepositAddress = resp.data.deposit_address;
             addressEl.textContent = this.currentDepositAddress;
         } else {
-            addressEl.textContent = 'Error generating address. Please try again.';
+            const errorMsg = resp.error || resp.details?.join(', ') || 'Unknown error';
+            console.error('Failed to generate deposit address:', errorMsg);
+            addressEl.textContent = `Error: ${errorMsg}`;
         }
         
         // Show modal

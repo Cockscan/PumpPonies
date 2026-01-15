@@ -5,17 +5,12 @@ const CONFIG = {
     // false = use real backend API
     USE_MOCK: false,
     
-    // Backend API URL
-    // Auto-detect: if running on localhost, use local backend
-    // Otherwise, use the production backend URL
-    API_BASE_URL: window.location.hostname === 'localhost' 
-        ? 'http://localhost:20101'
-        : 'https://pumpponies-production.up.railway.app',
+    // Backend API URL - Always use Railway backend
+    // Change to 'http://localhost:20101' only if running local backend
+    API_BASE_URL: 'https://pumpponies-production.up.railway.app',
     
     // WebSocket URL for real-time updates
-    WS_URL: window.location.hostname === 'localhost'
-        ? 'ws://localhost:20101/ws'
-        : 'wss://pumpponies-production.up.railway.app/ws',
+    WS_URL: 'wss://pumpponies-production.up.railway.app/ws',
     
     // Solana Configuration
     SOLANA_NETWORK: 'mainnet-beta',
