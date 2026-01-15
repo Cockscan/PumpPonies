@@ -161,7 +161,8 @@ class PayoutService {
     }
 
     /**
-     * Collect funds from deposit addresses - splits between master wallet and house wallet
+     * Collect funds from deposit addresses to master wallet
+     * House cut is taken during payout processing, not collection
      */
     async collectFromDepositAddress(depositAddress, privateKey) {
         if (!this.masterWallet) {
@@ -180,67 +181,23 @@ class PayoutService {
             return null;
         }
 
-        // Calculate amounts - need enough for fee and rent
+        // Calculate amount to send (minus transaction fee)
         const fee = 5000; // 0.000005 SOL for transaction fee
-        const minRent = 890880; // Minimum rent for account
-        
-        // For small amounts, send everything to master wallet (no split)
-        // Only split if amount is significant enough (> 0.05 SOL)
-        const minAmountForSplit = 0.05 * LAMPORTS_PER_SOL;
-        const shouldSplit = this.houseWalletAddress && balance > minAmountForSplit;
-        
-        let amountToSend;
-        let houseCut = 0;
-        let masterAmount;
-        
-        if (shouldSplit) {
-            // Split between master and house wallet
-            const totalFees = 10000; // Higher fee for 2 transfers
-            amountToSend = balance - totalFees;
-            houseCut = Math.floor(amountToSend * this.houseEdgePercent);
-            masterAmount = amountToSend - houseCut;
-        } else {
-            // Send everything to master wallet
-            amountToSend = balance - fee;
-            masterAmount = amountToSend;
-            houseCut = 0;
-        }
+        const amountToSend = balance - fee;
 
         if (amountToSend <= 0) {
             console.log(`Balance too low to collect from ${depositAddress}`);
             return null;
         }
 
-        // Create transaction
-        const transaction = new Transaction();
-
-        // Add transfer to master wallet
-        transaction.add(
+        // Create transaction - send ALL to master wallet
+        const transaction = new Transaction().add(
             SystemProgram.transfer({
                 fromPubkey: depositKeypair.publicKey,
                 toPubkey: this.masterWallet.publicKey,
-                lamports: masterAmount
+                lamports: amountToSend
             })
         );
-
-        // Add transfer to house wallet if splitting
-        if (shouldSplit && houseCut > 0) {
-            try {
-                const houseWalletPubkey = new PublicKey(this.houseWalletAddress);
-                transaction.add(
-                    SystemProgram.transfer({
-                        fromPubkey: depositKeypair.publicKey,
-                        toPubkey: houseWalletPubkey,
-                        lamports: houseCut
-                    })
-                );
-                console.log(`House cut: ${houseCut / LAMPORTS_PER_SOL} SOL to ${this.houseWalletAddress.slice(0, 8)}...`);
-            } catch (error) {
-                console.error('Invalid house wallet address:', error);
-            }
-        } else if (this.houseWalletAddress) {
-            console.log(`Amount too small for split (${balance / LAMPORTS_PER_SOL} SOL) - sending all to master wallet`);
-        }
 
         // Get recent blockhash
         const { blockhash } = await this.connection.getLatestBlockhash();
@@ -255,14 +212,11 @@ class PayoutService {
             { commitment: 'confirmed' }
         );
 
-        console.log(`Collected ${amountToSend / LAMPORTS_PER_SOL} SOL from ${depositAddress}: ${signature}`);
-        console.log(`  Master: ${masterAmount / LAMPORTS_PER_SOL} SOL, House: ${houseCut / LAMPORTS_PER_SOL} SOL`);
+        console.log(`Collected ${amountToSend / LAMPORTS_PER_SOL} SOL from ${depositAddress} to master wallet: ${signature}`);
 
         return {
             signature,
-            amount: amountToSend / LAMPORTS_PER_SOL,
-            masterAmount: masterAmount / LAMPORTS_PER_SOL,
-            houseCut: houseCut / LAMPORTS_PER_SOL
+            amount: amountToSend / LAMPORTS_PER_SOL
         };
     }
 
