@@ -257,8 +257,9 @@ class BettingUI {
         container.innerHTML = horses.map((horse, index) => {
             // Backend uses horse_number, fallback to id or index
             const horseId = horse.horse_number || horse.id || index + 1;
-            const pool = hasRace ? (this.activeRace.pools[horseId] || { amount: 0, bets: 0 }) : { amount: 0, bets: 0 };
-            const odds = hasRace ? api.calculateOdds(this.activeRace, horseId) : null;
+            const pools = this.activeRace?.pools || {};
+            const pool = hasRace ? (pools[horseId] || { amount: 0, bets: 0 }) : { amount: 0, bets: 0 };
+            const odds = (hasRace && pools) ? api.calculateOdds(this.activeRace, horseId) : null;
             const oddsDisplay = odds ? odds.toFixed(2) + 'x' : '--';
             const isUpdated = updatedHorseId === horseId;
             const jockeyName = horse.jockey || jockeyNames[index] || 'Unknown';
