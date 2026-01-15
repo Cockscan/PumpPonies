@@ -436,6 +436,34 @@ class BettingUI {
     }
     
     /**
+     * Show toast notification
+     */
+    showToast(message, type = 'success', duration = 4000) {
+        // Remove existing toast
+        const existingToast = document.querySelector('.toast-notification');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-icon">${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</div>
+            <div class="toast-message">${message}</div>
+        `;
+        document.body.appendChild(toast);
+        
+        // Trigger animation
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        // Remove after duration
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+    
+    /**
      * Setup WebSocket for real-time updates (when backend is live)
      */
     setupWebSocket() {
@@ -446,6 +474,10 @@ class BettingUI {
                 this.activeRace.pools = pools;
                 this.renderHorses(bet.horse_number); // Animate specific horse
                 this.renderTotals(true); // Animate totals
+                
+                // Show notification for new bet
+                const horseName = this.activeRace.horses?.find(h => h.horse_number === bet.horse_number)?.name || `Horse #${bet.horse_number}`;
+                this.showToast(`New bet: ${bet.amount} SOL on ${horseName}`, 'info', 3000);
             }
         };
         
@@ -522,7 +554,11 @@ class BettingUI {
         
         if (resp.success && resp.data) {
             this.currentDepositAddress = resp.data.deposit_address;
+            this.currentDepositId = resp.data.deposit_id;
             addressEl.textContent = this.currentDepositAddress;
+            
+            // Start polling for deposit confirmation
+            this.startDepositPolling(resp.data.deposit_id, this.selectedHorse.name);
         } else {
             const errorMsg = resp.error || resp.details?.join(', ') || 'Unknown error';
             console.error('Failed to generate deposit address:', errorMsg);
@@ -533,8 +569,59 @@ class BettingUI {
         document.getElementById('bet-modal').classList.add('active');
     }
     
+    /**
+     * Poll for deposit confirmation
+     */
+    startDepositPolling(depositId, horseName) {
+        // Clear any existing polling
+        if (this.depositPollInterval) {
+            clearInterval(this.depositPollInterval);
+        }
+        
+        let pollCount = 0;
+        const maxPolls = 360; // 30 minutes at 5 second intervals
+        
+        this.depositPollInterval = setInterval(async () => {
+            pollCount++;
+            
+            if (pollCount > maxPolls) {
+                clearInterval(this.depositPollInterval);
+                return;
+            }
+            
+            try {
+                const resp = await fetch(`${CONFIG.API_BASE_URL}/bet/status/${depositId}`);
+                const result = await resp.json();
+                
+                if (result.success && result.data) {
+                    const status = result.data.status;
+                    
+                    if (status === 'confirmed') {
+                        clearInterval(this.depositPollInterval);
+                        this.showToast(`✓ Bet confirmed! ${result.data.amount_received} SOL on ${horseName}`, 'success', 6000);
+                        this.closeBetModal();
+                        
+                        // Refresh race data
+                        await this.loadRaceData();
+                        this.render();
+                    } else if (status.startsWith('rejected')) {
+                        clearInterval(this.depositPollInterval);
+                        this.showToast(`Bet rejected: ${status.replace('rejected_', '').replace(/_/g, ' ')}`, 'error', 6000);
+                    }
+                }
+            } catch (err) {
+                console.log('Deposit poll error:', err);
+            }
+        }, 5000); // Poll every 5 seconds
+    }
+    
     closeBetModal() {
         document.getElementById('bet-modal').classList.remove('active');
+        
+        // Stop deposit polling when modal closes
+        if (this.depositPollInterval) {
+            clearInterval(this.depositPollInterval);
+        }
         this.selectedHorse = null;
         this.currentDepositAddress = null;
     }
