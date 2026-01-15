@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Privacy Policy - PUMP PONIES</title>
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Racing+Sans+One&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="images/favicon.ico" rel="shortcut icon" type="image/x-icon">
+  <style>
+    :root {
+      --felt-green: #1a472a;
+      --felt-green-light: #2d5a3d;
+      --gold: #d4af37;
+      --gold-light: #f4d03f;
+      --cream: #f5f0e1;
+      --dark: #0d1b12;
+      --burgundy: #722f37;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Roboto Mono', monospace;
+      background: var(--dark);
+      color: var(--cream);
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(ellipse at top, var(--felt-green) 0%, var(--dark) 70%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a472a' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(180deg, var(--dark) 0%, transparent 100%);
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--gold);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      font-size: 48px;
+    }
+
+    .logo-text {
+      font-family: 'Racing Sans One', cursive;
+      font-size: 36px;
+      color: var(--gold);
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      letter-spacing: 2px;
+    }
+
+    .legal-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      line-height: 1.8;
+    }
+
+    .legal-title {
+      font-family: 'Racing Sans One', cursive;
+      font-size: 48px;
+      color: var(--gold);
+      margin-bottom: 10px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .legal-subtitle {
+      text-align: center;
+      color: var(--cream);
+      opacity: 0.7;
+      margin-bottom: 40px;
+      font-size: 14px;
+    }
+
+    .legal-section {
+      background: linear-gradient(135deg, rgba(26, 71, 42, 0.3) 0%, rgba(13, 27, 18, 0.5) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 12px;
+      padding: 25px 30px;
+      margin-bottom: 20px;
+    }
+
+    .legal-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      color: var(--gold);
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .legal-section h2::before {
+      content: '🔒';
+      font-size: 18px;
+    }
+
+    .legal-section p {
+      margin-bottom: 12px;
+      color: var(--cream);
+      opacity: 0.9;
+    }
+
+    .legal-section ul {
+      margin-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .legal-section li {
+      margin-bottom: 8px;
+      color: var(--cream);
+      opacity: 0.85;
+    }
+
+    .legal-section li::marker {
+      color: var(--gold);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 30px;
+      color: var(--gold);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 10px 20px;
+      border: 2px solid var(--gold);
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+
+    .back-link:hover {
+      background: var(--gold);
+      color: var(--dark);
+    }
+
+    .footer {
+      text-align: center;
+      padding: 30px;
+      border-top: 1px solid rgba(212, 175, 55, 0.2);
+      margin-top: 40px;
+      color: var(--cream);
+      opacity: 0.6;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        padding: 15px 20px;
+      }
+      .logo-text {
+        font-size: 24px;
+      }
+      .logo-icon {
+        font-size: 36px;
+      }
+      .legal-title {
+        font-size: 32px;
+      }
+      .legal-section {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="index.html" class="logo">
+      <img src="images/logo.png" alt="Pump Ponies" style="height: 50px; width: auto;">
+    </a>
+  </header>
+
+  <div class="legal-container">
+    <a href="index.html" class="back-link">← Back to Racing</a>
+    
+    <h1 class="legal-title">Privacy Policy</h1>
+    <p class="legal-subtitle">Last Updated: January 15, 2026</p>
+    
+    <div class="legal-section">
+      <h2>Information We Collect</h2>
+      <p>PUMP PONIES collects minimal personal information. We prioritize your privacy and only collect what is necessary to operate the betting platform.</p>
+      <p>Information collected includes:</p>
+      <ul>
+        <li>Public wallet addresses (when you send SOL to bet)</li>
+        <li>Betting history and transaction records</li>
+        <li>Browser and device information for analytics</li>
+        <li>IP address for security purposes</li>
+      </ul>
+    </div>
+    
+    <div class="legal-section">
+      <h2>How We Use Your Information</h2>
+      <p>We use the collected information to:</p>
+      <ul>
+        <li>Process betting deposits and payouts</li>
+        <li>Match deposits to specific races and horses</li>
+        <li>Display race results and betting statistics</li>
+        <li>Improve platform performance and user experience</li>
+        <li>Detect and prevent fraud or abuse</li>
+        <li>Comply with legal requirements</li>
+      </ul>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Blockchain Transparency</h2>
+      <p>All betting transactions are recorded on the Solana blockchain, which is publicly accessible. Your wallet address and transaction history can be viewed by anyone using blockchain explorers.</p>
+      <p>We generate unique deposit addresses for each bet, which provides some privacy for your betting patterns while maintaining blockchain transparency.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Cookies and Local Storage</h2>
+      <p>We use local storage to:</p>
+      <ul>
+        <li>Remember your preferences</li>
+        <li>Store session information</li>
+        <li>Improve site performance</li>
+      </ul>
+      <p>We may use analytics tools to understand platform usage patterns and improve our services.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Data Security</h2>
+      <p>We implement industry-standard security measures to protect your information:</p>
+      <ul>
+        <li>Encrypted connections (HTTPS)</li>
+        <li>Secure database storage</li>
+        <li>Regular security audits</li>
+        <li>Limited access to sensitive data</li>
+      </ul>
+      <p>However, no method of transmission over the Internet is 100% secure. We cannot guarantee absolute security.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Third-Party Services</h2>
+      <p>We integrate with third-party services including:</p>
+      <ul>
+        <li>Solana blockchain network</li>
+        <li>RPC providers for blockchain access</li>
+        <li>Analytics services</li>
+        <li>Pump.fun for live streaming</li>
+      </ul>
+      <p>These services have their own privacy policies that govern their use of your data.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Data Retention</h2>
+      <p>We retain betting records and transaction data for:</p>
+      <ul>
+        <li>Operational purposes (processing payouts)</li>
+        <li>Legal compliance requirements</li>
+        <li>Dispute resolution</li>
+      </ul>
+      <p>Blockchain data is permanent and cannot be deleted.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Your Rights</h2>
+      <p>You have the right to:</p>
+      <ul>
+        <li>Access information we hold about you</li>
+        <li>Request correction of inaccurate data</li>
+        <li>Request deletion of off-chain data</li>
+        <li>Opt out of analytics tracking</li>
+      </ul>
+      <p>Note: On-chain blockchain data cannot be deleted or modified.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Children's Privacy</h2>
+      <p>PUMP PONIES is not intended for users under 18 years of age. We do not knowingly collect information from minors. If we discover we have collected data from a minor, we will delete it promptly.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Changes to Privacy Policy</h2>
+      <p>We may update this privacy policy from time to time. Continued use of the platform after changes constitutes acceptance of the updated policy. We will post the updated date at the top of this page.</p>
+    </div>
+    
+    <div class="legal-section">
+      <h2>Contact Us</h2>
+      <p>If you have questions about this privacy policy or our data practices, please contact us through our official Telegram or X (Twitter) channels.</p>
+    </div>
+
+    <div class="footer">
+      © 2026 PUMP PONIES. All rights reserved. | <a href="terms.html" style="color: var(--gold);">Terms and Conditions</a>
+    </div>
+  </div>
+</body>
+</html>

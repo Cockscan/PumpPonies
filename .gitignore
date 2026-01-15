@@ -1,0 +1,45 @@
+# Admin Panel - keep local only, do not deploy
+admin.html
+
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+backend/.env
+
+# Database files
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+
+# Vercel
+.vercel
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Mac files
+__MACOSX/

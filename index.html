@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PUMP PONIES - AI Horse Racing on Pump.fun</title>
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="Bet SOL on AI horse races streamed live on Pump.fun!" name="description">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Racing+Sans+One&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="images/favicon.ico" rel="shortcut icon" type="image/x-icon">
+  <style>
+    :root {
+      --felt-green: #1a472a;    /* Forest green from terms/privacy */
+      --felt-green-light: #2d5a3d;
+      --gold: #d4af37;          /* Classic gold */
+      --gold-light: #f4d03f;
+      --cream: #f5f0e1;
+      --dark: #0d1b12;          /* Dark green-black */
+      --burgundy: #722f37;
+      --white: #ffffff;
+      /* Robot Jockey Colors - matching horse names */
+      --horse-1: #dc2626;       /* Neighkamoto - red */
+      --horse-2: #f5f5f5;       /* Stablecolt - white */
+      --horse-3: #1e3a5f;       /* Whalehinny - navy blue */
+      --horse-4: #facc15;       /* Hoofproof - yellow */
+      --horse-5: #1a472a;       /* Gallopchain - forest green */
+      --horse-6: #1a1a1a;       /* Mareketcap - black and gold */
+      --horse-7: #f97316;       /* Stalloshi - orange */
+      --horse-8: #ec4899;       /* Trothereum - pink */
+      --horse-9: #93c5fd;       /* Neighonce - pastel blue */
+      --horse-10: #a855f7;      /* Foalment - purple */
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Roboto Mono', monospace;
+      background: var(--dark);
+      color: var(--cream);
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(ellipse at top, var(--felt-green) 0%, var(--dark) 85%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a472a' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, transparent 100%);
+      padding: 25px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid var(--gold);
+      position: relative;
+      box-shadow: 0 5px 20px rgba(212, 175, 55, 0.15);
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--gold);
+      opacity: 0.2;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .logo img {
+      height: 60px;
+      width: auto;
+    }
+
+    .logo-subtitle {
+      font-size: 12px;
+      color: var(--gold);
+      opacity: 0.9;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .header-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .header-link {
+      color: var(--cream);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 10px 20px;
+      border: 1px solid var(--gold);
+      transition: all 0.3s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .header-link:hover {
+      background: var(--gold);
+      color: var(--dark);
+    }
+
+    .header-link.primary {
+      background: var(--gold);
+      color: var(--dark);
+      font-weight: 600;
+    }
+
+    .header-link.primary:hover {
+      background: var(--gold-light);
+    }
+
+    /* Main Content */
+    .main-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    /* Race Banner */
+    .race-banner {
+      background: linear-gradient(135deg, #2d1b4e 0%, #1a0f2e 100%);
+      border: 3px solid var(--gold);
+      border-radius: 8px;
+      padding: 30px 40px;
+      padding-right: 200px;
+      margin-bottom: 30px;
+      position: relative;
+      overflow: hidden;
+      min-height: 200px;
+    }
+
+    .race-banner::before {
+      content: '';
+      position: absolute;
+      right: -30px;
+      bottom: -120px;
+      width: 400px;
+      height: 400px;
+      background-image: url('images/horse-mascot.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      opacity: 0.85;
+      filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+    }
+
+    .race-status {
+      display: inline-block;
+      background: #27ae60;
+      color: white;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      border-radius: 3px;
+      margin-bottom: 15px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .race-status.closed {
+      background: var(--burgundy);
+      animation: none;
+    }
+
+    .race-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .race-info {
+      font-size: 14px;
+      color: var(--cream);
+      opacity: 0.8;
+    }
+
+    .race-countdown {
+      margin-top: 20px;
+      display: flex;
+      gap: 15px;
+    }
+
+    .countdown-box {
+      background: rgba(0,0,0,0.4);
+      padding: 15px 20px;
+      text-align: center;
+      border: 1px solid var(--gold);
+    }
+
+    .countdown-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--gold-light);
+      font-family: 'Racing Sans One', cursive;
+    }
+
+    .countdown-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.7;
+    }
+
+    /* Betting Board */
+    .betting-board {
+      background: linear-gradient(180deg, var(--felt-green) 0%, var(--felt-green-light) 50%, var(--felt-green) 100%);
+      border: 4px solid var(--gold);
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 
+        inset 0 0 100px rgba(0,0,0,0.3),
+        0 10px 40px rgba(0,0,0,0.5);
+    }
+
+    .board-header {
+      display: grid;
+      grid-template-columns: 60px 1fr 100px 100px 120px;
+      gap: 15px;
+      padding: 15px 20px;
+      background: rgba(0,0,0,0.3);
+      border-bottom: 2px solid var(--gold);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .horse-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 100px 100px 120px;
+      gap: 15px;
+      padding: 20px;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+      align-items: center;
+      transition: all 0.3s;
+    }
+
+    .horse-row:hover {
+      background: rgba(0,0,0,0.2);
+    }
+
+    .horse-row:last-child {
+      border-bottom: none;
+    }
+
+    .horse-number {
+      width: 50px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .robot-jockey {
+      width: 50px;
+      height: 60px;
+    }
+
+    .robot-jockey svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.3));
+    }
+
+    .horse-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .horse-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--cream);
+    }
+
+    .horse-jockey {
+      font-size: 12px;
+      color: var(--gold);
+      opacity: 0.8;
+    }
+
+    .horse-odds {
+      font-family: 'Racing Sans One', cursive;
+      font-size: 28px;
+      color: var(--gold-light);
+      text-align: center;
+    }
+
+    .horse-pool {
+      font-size: 14px;
+      color: var(--cream);
+      text-align: center;
+    }
+
+    .horse-pool span {
+      display: block;
+      font-size: 11px;
+      opacity: 0.6;
+    }
+
+    .bet-btn {
+      background: linear-gradient(180deg, var(--gold) 0%, #b8942d 100%);
+      border: none;
+      color: var(--dark);
+      padding: 12px 20px;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.3s;
+      border-radius: 4px;
+    }
+
+    .bet-btn:hover {
+      background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+    }
+
+    /* Bet Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .bet-modal {
+      background: linear-gradient(135deg, var(--felt-green) 0%, var(--dark) 100%);
+      border: 3px solid var(--gold);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: var(--cream);
+      font-size: 28px;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+
+    .modal-close:hover {
+      opacity: 1;
+    }
+
+    .modal-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      color: var(--gold);
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .selected-horse {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(0,0,0,0.3);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+
+    .selected-horse .horse-number {
+      width: 60px;
+      height: 70px;
+    }
+
+    .selected-horse .robot-jockey {
+      width: 60px;
+      height: 70px;
+    }
+
+    .selected-horse-info h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      color: var(--cream);
+    }
+
+    .selected-horse-info p {
+      color: var(--gold);
+      font-size: 14px;
+    }
+
+    .bet-instructions {
+      background: rgba(212, 175, 55, 0.1);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+
+    .bet-instructions h4 {
+      color: var(--gold);
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+    }
+
+    .bet-instructions ol {
+      list-style: none;
+      counter-reset: steps;
+    }
+
+    .bet-instructions li {
+      counter-increment: steps;
+      padding: 10px 0;
+      padding-left: 40px;
+      position: relative;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .bet-instructions li:last-child {
+      border-bottom: none;
+    }
+
+    .bet-instructions li::before {
+      content: counter(steps);
+      position: absolute;
+      left: 0;
+      top: 10px;
+      width: 24px;
+      height: 24px;
+      background: var(--gold);
+      color: var(--dark);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .deposit-address {
+      background: var(--dark);
+      border: 2px solid var(--gold);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .deposit-address label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .deposit-address-value {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      color: var(--cream);
+      word-break: break-all;
+      padding: 15px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .deposit-address-value:hover {
+      background: rgba(212, 175, 55, 0.2);
+    }
+
+    .copy-btn {
+      background: var(--gold);
+      color: var(--dark);
+      border: none;
+      padding: 10px 30px;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s;
+    }
+
+    .copy-btn:hover {
+      background: var(--gold-light);
+    }
+
+    .bet-note {
+      text-align: center;
+      font-size: 12px;
+      color: var(--cream);
+      opacity: 0.7;
+      margin-top: 20px;
+    }
+
+    /* Total Pool Section */
+    .total-pool-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 25px 30px;
+      background: rgba(0,0,0,0.4);
+      border-top: 2px solid var(--gold);
+      margin-top: 10px;
+    }
+
+    .total-pool-box {
+      text-align: center;
+    }
+
+    .total-pool-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+
+    .total-pool-value {
+      font-family: 'Racing Sans One', cursive;
+      font-size: 36px;
+      color: var(--gold-light);
+    }
+
+    .total-pool-value span {
+      font-size: 18px;
+      opacity: 0.7;
+    }
+
+    /* How It Works Section */
+    .how-it-works {
+      margin-top: 40px;
+      background: rgba(0,0,0,0.3);
+      border: 2px solid var(--gold);
+      border-radius: 8px;
+      padding: 40px;
+    }
+
+    .how-it-works h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      color: var(--gold);
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+    }
+
+    .step-card {
+      text-align: center;
+      padding: 25px;
+    }
+
+    .step-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .step-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      color: var(--cream);
+      opacity: 0.8;
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 60px;
+      padding: 40px;
+      border-top: 2px solid var(--gold);
+      text-align: center;
+    }
+
+    .footer-logo {
+      margin-bottom: 15px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 20px;
+    }
+
+    .footer-links a {
+      color: var(--cream);
+      text-decoration: none;
+      font-size: 12px;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+
+    .footer-links a:hover {
+      opacity: 1;
+      color: var(--gold);
+    }
+
+    .footer-disclaimer {
+      font-size: 11px;
+      color: var(--cream);
+      opacity: 0.5;
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Previous Races */
+    .previous-races {
+      margin-top: 40px;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      color: var(--gold);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+    }
+
+    .race-history-card {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      padding: 20px 25px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .race-history-info h4 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: var(--cream);
+      margin-bottom: 5px;
+    }
+
+    .race-history-info p {
+      font-size: 12px;
+      color: var(--gold);
+      opacity: 0.8;
+    }
+
+    .race-winner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .winner-badge {
+      background: var(--gold);
+      color: var(--dark);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* ===================
+       ANIMATIONS
+       =================== */
+    @keyframes pulse-gold {
+      0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+    }
+
+    @keyframes odds-glow {
+      0% { color: var(--cream); text-shadow: none; }
+      50% { color: var(--gold-light); text-shadow: 0 0 10px var(--gold); }
+      100% { color: var(--cream); text-shadow: none; }
+    }
+
+    @keyframes heartbeat {
+      0% { transform: scale(1); }
+      5% { transform: scale(1.05); }
+      10% { transform: scale(1); }
+    }
+
+    @keyframes robot-idle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
+    @keyframes modal-zoom {
+      from { transform: scale(0.8); opacity: 0; filter: blur(10px); }
+      to { transform: scale(1); opacity: 1; filter: blur(0); }
+    }
+
+    .horse-row {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      border-left: 4px solid transparent;
+    }
+
+    .horse-row:hover {
+      background: rgba(212, 175, 55, 0.1) !important;
+      transform: translateX(10px) scale(1.01);
+      border-left-color: var(--gold);
+      box-shadow: -5px 0 15px rgba(212, 175, 55, 0.2);
+    }
+
+    .horse-row.updated {
+      animation: pulse-gold 1s ease-out;
+    }
+
+    .horse-row.no-race {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .horse-row.no-race:hover {
+      transform: none;
+      background: transparent !important;
+      border-left-color: transparent;
+      box-shadow: none;
+    }
+
+    .horse-odds.updated {
+      animation: odds-glow 1s ease-out;
+    }
+
+    .total-pool-value {
+      transition: all 0.5s ease;
+    }
+
+    .total-pool-value.updated {
+      transform: scale(1.1);
+      color: var(--gold-light);
+    }
+
+    #countdown-timer {
+      animation: heartbeat 2s infinite;
+    }
+
+    .robot-icon {
+      animation: robot-idle 3s infinite ease-in-out;
+    }
+
+    .modal-content {
+      animation: modal-zoom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .status-badge {
+      animation: pulse-gold 2s infinite;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .board-header,
+      .horse-row {
+        grid-template-columns: 50px 1fr 80px 100px;
+      }
+
+      .horse-pool {
+        display: none;
+      }
+
+      .header {
+        padding: 15px 20px;
+      }
+
+      .logo img {
+        height: 40px;
+      }
+
+      .race-title {
+        font-size: 28px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .board-header,
+      .horse-row {
+        grid-template-columns: 45px 1fr 90px;
+      }
+
+      .horse-odds {
+        display: none;
+      }
+
+      .header-links {
+        display: none;
+      }
+
+      .countdown-box {
+        padding: 10px 15px;
+      }
+
+      .countdown-value {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <img src="images/logo.png" alt="Pump Ponies">
+      <div class="logo-subtitle">AI Horse Racing on Pump.fun</div>
+    </div>
+    <div class="header-links">
+      <a href="#" id="watch-live-link" target="_blank" class="header-link">Watch Live</a>
+      <a href="#how-it-works" class="header-link">How It Works</a>
+      <a href="#" id="buy-pump-link" target="_blank" class="header-link primary">Buy on Pump</a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Race Banner -->
+    <div class="race-banner">
+      <div class="race-status closed" id="race-status">LOADING...</div>
+      <h1 class="race-title" id="race-title">Connecting to server...</h1>
+      <p class="race-info" id="race-info">Please wait</p>
+      <div class="race-countdown" id="race-countdown">
+        <div class="countdown-box">
+          <div class="countdown-value" id="countdown-hours">00</div>
+          <div class="countdown-label">Hours</div>
+        </div>
+        <div class="countdown-box">
+          <div class="countdown-value" id="countdown-minutes">00</div>
+          <div class="countdown-label">Minutes</div>
+        </div>
+        <div class="countdown-box">
+          <div class="countdown-value" id="countdown-seconds">00</div>
+          <div class="countdown-label">Seconds</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Betting Board -->
+    <div class="betting-board">
+      <div class="board-header">
+        <div>#</div>
+        <div>Horse</div>
+        <div>Odds</div>
+        <div>Pool</div>
+        <div>Action</div>
+    </div>
+    
+      <div id="horses-container">
+        <!-- Horses will be rendered here by JS -->
+      </div>
+
+      <div class="total-pool-section">
+        <div class="total-pool-box">
+          <div class="total-pool-label">Total Pool</div>
+          <div class="total-pool-value" id="total-pool">0.00 <span>SOL</span></div>
+    </div>
+        <div class="total-pool-box">
+          <div class="total-pool-label">Total Bets</div>
+          <div class="total-pool-value" id="total-bets">0</div>
+    </div>
+        <div class="total-pool-box">
+          <div class="total-pool-label">Next Race</div>
+          <div class="total-pool-value" id="next-race-time">--:--</div>
+      </div>
+    </div>
+  </div>
+  
+    <!-- How It Works -->
+    <section class="how-it-works" id="how-it-works">
+      <h2>How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-icon">🎯</div>
+          <h3 class="step-title">Pick Your Horse</h3>
+          <p class="step-desc">Choose from 10 AI-controlled horses. Check the odds and make your pick!</p>
+        </div>
+        <div class="step-card">
+          <div class="step-icon">💸</div>
+          <h3 class="step-title">Send SOL</h3>
+          <p class="step-desc">Get a unique deposit address. Send any amount of SOL to place your bet. No wallet connection needed!</p>
+        </div>
+        <div class="step-card">
+          <div class="step-icon">📺</div>
+          <h3 class="step-title">Watch the Race</h3>
+          <p class="step-desc">Tune in to our live stream on Pump.fun and watch your horse compete!</p>
+        </div>
+        <div class="step-card">
+          <div class="step-icon">🏆</div>
+          <h3 class="step-title">Collect Winnings</h3>
+          <p class="step-desc">Winners receive their share of the pool automatically sent to their wallet!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Previous Races -->
+    <section class="previous-races">
+      <h2 class="section-title">Previous Races</h2>
+      <div id="race-history">
+        <!-- Race history will be rendered here -->
+        <div class="race-history-card">
+          <div class="race-history-info">
+            <h4>No completed races yet</h4>
+            <p>Check back after the first race!</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-logo"><img src="images/logo.png" alt="Pump Ponies" style="height: 50px; width: auto;"></div>
+    <div class="footer-links">
+      <a href="https://pump.fun" target="_blank">Pump.fun</a>
+      <a href="https://twitter.com" target="_blank">Twitter</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+    <p class="footer-disclaimer">
+      PUMP PONIES is an entertainment platform. Betting involves risk. 
+      Please gamble responsibly. Must be 18+ to participate.
+    </p>
+  </footer>
+
+  <!-- Bet Modal -->
+  <div class="modal-overlay" id="bet-modal">
+    <div class="bet-modal">
+      <button class="modal-close" onclick="closeBetModal()">&times;</button>
+      <h2 class="modal-title">Place Your Bet</h2>
+      
+      <div class="selected-horse" id="selected-horse">
+        <!-- Selected horse info will be rendered here -->
+      </div>
+
+      <div class="bet-instructions">
+        <h4>How to Bet</h4>
+        <ol>
+          <li>Copy the unique deposit address below</li>
+          <li>Send any amount of SOL to this address from your wallet</li>
+          <li>Your bet will be confirmed automatically within 1 minute</li>
+          <li>If you win, SOL will be sent back to your wallet!</li>
+        </ol>
+  </div>
+  
+      <div class="deposit-address">
+        <label>Your Unique Deposit Address</label>
+        <div class="deposit-address-value" id="deposit-address" onclick="copyAddress()">
+          Loading...
+        </div>
+        <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
+      </div>
+
+      <p class="bet-note">
+        ⚡ Min bet: 0.01 SOL • Max bet: 20 SOL<br>
+        Address expires in 30 minutes
+      </p>
+    </div>
+  </div>
+
+  <!-- Load Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/betting-ui.js"></script>
+  
+  <script>
+    // Close modal on outside click
+    document.getElementById('bet-modal').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-overlay')) {
+        bettingUI.closeBetModal();
+      }
+    });
+  </script>
+</body>
+</html>
