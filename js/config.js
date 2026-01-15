@@ -10,12 +10,12 @@ const CONFIG = {
     // Otherwise, use the production backend URL
     API_BASE_URL: window.location.hostname === 'localhost' 
         ? 'http://localhost:20101'
-        : 'https://your-railway-backend-url.up.railway.app',
+        : 'https://pumpponies-production.up.railway.app',
     
     // WebSocket URL for real-time updates
     WS_URL: window.location.hostname === 'localhost'
         ? 'ws://localhost:20101/ws'
-        : 'wss://your-railway-backend-url.up.railway.app/ws',
+        : 'wss://pumpponies-production.up.railway.app/ws',
     
     // Solana Configuration
     SOLANA_NETWORK: 'mainnet-beta',
